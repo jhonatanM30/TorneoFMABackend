@@ -29,7 +29,8 @@ public class CorsConfig {
         // 🔹 Aquí defines qué orígenes pueden acceder al backend
         List<String> allowedOrigins = Arrays.asList(
             "http://127.0.0.1:5500",  // 🔹 Para pruebas locales con Live Server
-            "http://localhost:5500"  // 🔹 Para otro localhost (por si acaso)           
+            "http://localhost:5500", // 🔹 Para otro localhost (por si acaso)           
+            "http://localhost:5173"
         );
 
         config.setAllowedOrigins(allowedOrigins); 
