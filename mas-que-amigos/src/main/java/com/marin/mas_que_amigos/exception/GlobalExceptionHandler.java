@@ -5,6 +5,7 @@
  */
 package com.marin.mas_que_amigos.exception;
 
+import com.marin.mas_que_amigos.dto.EquipoDTO;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -20,10 +21,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
     
     @ExceptionHandler(EquipoNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleEquipoNotFound(EquipoNotFoundException ex) {
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    public ResponseEntity<EquipoDTO> handleEquipoNotFound(EquipoNotFoundException ex) {        
+        
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new EquipoDTO("Sin Registros", ex.getMessage()));
     }
     
     @ExceptionHandler(JugadorNotFoundException.class)
@@ -35,16 +36,15 @@ public class GlobalExceptionHandler {
     
     
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Map<String, String>> handleBusinessException(BusinessException ex) {
-        Map<String, String> response = new HashMap<>();
-        response.put("error", ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    public ResponseEntity<EquipoDTO> handleBusinessException(BusinessException ex) {
+      
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new EquipoDTO("Error", ex.getMessage()));
     }
     
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
-        Map<String, String> response = new HashMap<>();
-        response.put("error", "Error inesperado: " + ex.getMessage());
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    public ResponseEntity<EquipoDTO> handleGenericException(Exception ex) {
+         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new EquipoDTO("Error", ex.getMessage()));
     }
 }

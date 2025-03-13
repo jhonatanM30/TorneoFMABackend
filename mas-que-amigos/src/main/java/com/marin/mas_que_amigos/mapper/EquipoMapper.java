@@ -40,6 +40,8 @@ public class EquipoMapper {
                 .map(jugadorMapper::toDTOOfTeam)
                 .collect(Collectors.toList()));
         }
+        dto.setIndicadorRespuesta("Success");
+        dto.setMensaje("");
         return dto;
     }
     

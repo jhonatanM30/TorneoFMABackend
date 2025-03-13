@@ -29,7 +29,8 @@ public class JugadorMapper {
     // Solo incluir el ID del equipo en vez de toda la entidad para evitar recursión infinita
     dto.setIdEquipo(jugador.getEquipo().getId());
     dto.setEquipo(equipoMapper.toDTOOfPlayer(jugador.getEquipo()));
-
+    dto.setIndicadorRespuesta("Success");
+    dto.setMensaje("");
     return dto;
 }
 

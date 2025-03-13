@@ -35,7 +35,7 @@ public class JugadorService {
     public JugadorDTO obtenerJugadorPorId(int dorsal) {
 
         Jugador jugador = jugadorRepository.findByDorsal(dorsal)
-                .orElseThrow(() -> new JugadorNotFoundException("El jugador con ID " + dorsal + " no fue encontrado."));
+                .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! No se encontró registros de jugador con Dorsal " + dorsal + "."));
         return jugadorMapper.toDTO(jugador);
     }
 
@@ -46,26 +46,39 @@ public class JugadorService {
         if (jugadorDTO.getIdEquipo() != null) {            
             validarDorsalEnEquipo(jugadorDTO);
             Equipo equipo = equipoRepository.findById(jugadorDTO.getIdEquipo())
-                    .orElseThrow(() -> new RuntimeException("Equipo no encontrado con ID: " + jugadorDTO.getIdEquipo()));
+                    .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! No se encontró registros de equipo con Id " + jugadorDTO.getIdEquipo() + "."));
             jugador.setEquipo(equipo); // 🔹 Asignar el equipo antes de guardar
         }
 
         jugador = jugadorRepository.save(jugador);
 
-        return jugadorMapper.toDTO(jugador);
+        return new JugadorDTO("Success", "Gooool! El jugador " + jugador.getNombre() + "se guardó en la base de datos.");
     }
 
-    public void eliminarJugador(Long id) {
-         Jugador jugador = jugadorRepository.findById(id)
-                .orElseThrow(() -> new JugadorNotFoundException("El jugador con ID No existe, no se puede eliminar"));
+    public JugadorDTO eliminarJugador(Long id) {
+         
+        Jugador jugador = jugadorRepository.findById(id)
+                .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! No se encontró registros de jugador con Id "  + id + "."));
        
         jugadorRepository.deleteById(id);
+        
+        return new JugadorDTO("Success", "Fin del juego! El jugador " + jugador.getNombre() + " ha sido eliminado correctamente de la base de datos.");
     }
 
     public void validarDorsalEnEquipo(JugadorDTO jugadorDTO) {
         boolean existeDorsal = jugadorRepository.existsByDorsalAndEquipoId(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo());
         if (existeDorsal) {
-            throw new BusinessException("El dorsal " + jugadorDTO.getDorsal() + " ya está asignado en el equipo.");
+            throw new BusinessException("Cambio! El dorsal " + jugadorDTO.getDorsal() + " ya está asignado en el equipo.");
         }       
+    }
+    
+      public JugadorDTO actualizarEquipo(JugadorDTO jugadorDTO) {
+
+         jugadorRepository.findById(jugadorDTO.getId())
+                .orElseThrow(() -> new JugadorNotFoundException("El jugador con ID " + jugadorDTO.getId() + " no existe, no se puede actualizar."));
+
+        jugadorRepository.save(jugadorMapper.toEntity(jugadorDTO));
+        
+         return new JugadorDTO("Success", "Gooool! El jugador " + jugadorDTO.getNombre() + "se guardó en la base de datos.");
     }
 }
