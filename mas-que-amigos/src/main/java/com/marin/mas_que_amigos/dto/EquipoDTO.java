@@ -11,22 +11,24 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor  // Constructor vacío necesario para serialización
 @AllArgsConstructor // Constructor con todos los campos
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class EquipoDTO {
     private Long id;
     private String nombre;
     private String directorTecnico;
     private String imagenUrl;
-    private int titulos;
-    private int idTorneo;
+    private Integer titulos;
+    private Integer idTorneo;
+    private String tipoClasificacion;
     private String indicadorRespuesta;
     private String mensaje;   
     
      // 🔹 Constructor solo con `indicadorRespuesta` y `mensaje`
-    public EquipoDTO(String indicadorRespuesta, String mensaje) {
+    public EquipoDTO(Long id, String indicadorRespuesta, String mensaje) {
+        this.id = id;
         this.indicadorRespuesta = indicadorRespuesta;
         this.mensaje = mensaje;
     }
-    
-    @JsonInclude(JsonInclude.Include.NON_EMPTY)
+   
     private List<JugadorDTO> jugadores;  // Aquí agregamos los jugadores
 }

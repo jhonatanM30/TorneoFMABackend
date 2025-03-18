@@ -7,7 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Optional;
+
 
 @RestController
 @RequestMapping("/api/equipos")
@@ -27,13 +27,20 @@ public class EquipoController {
 
     @GetMapping("/{nombre}")
     public ResponseEntity<EquipoDTO> obtenerEquipo(@PathVariable String nombre) {
-        EquipoDTO equipo = equipoService.obtenerEquipoPorNombre(nombre);
-        return ResponseEntity.ok(equipo);  // Retorna 200 OK con el equipo encontrado
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(new EquipoDTO("Error", "El nombre del equipo es obligatorio."));
+        }
+        return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre));  // Retorna 200 OK con el equipo encontrado
     }
 
     @PostMapping
     public EquipoDTO crearEquipo(@RequestBody EquipoDTO equipo) {
         return equipoService.guardarEquipo(equipo);
+    }
+    
+    @PutMapping
+    public EquipoDTO editarEquipo(@RequestBody EquipoDTO equipo) {
+        return equipoService.actualizarEquipo(equipo);
     }
 
     @DeleteMapping("/{id}")

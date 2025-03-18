@@ -8,69 +8,70 @@ import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import org.springframework.stereotype.Service;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class EquipoService {
 
     private final EquipoRepository equipoRepository;
-    private final EquipoMapper equipoMapper;
+    private final EquipoMapper mapper;
 
     public EquipoService(EquipoRepository equipoRepository, EquipoMapper equipoMapper) {
         this.equipoRepository = equipoRepository;
-        this.equipoMapper = equipoMapper;
+        this.mapper = equipoMapper;
     }
 
     public List<EquipoDTO> listarEquipos() {
 
         return equipoRepository.findAll()
                 .stream()
-                .map(equipoMapper::toDTO)
+                .map(mapper::toDTO)
                 .collect(Collectors.toList());
 
     }
 
     public EquipoDTO obtenerEquipoPorNombre(String nombre) {
 
-        Equipo equipoGuardado = equipoRepository.findByNombre(nombre);
+        EquipoDTO rspEquipo = Optional.ofNullable(equipoRepository.findByNombreIgnoreCase(nombre))
+                .map(mapper::toDTO) // Si el equipo existe, lo convierte a DTO
+                .orElseThrow(() -> {
+            return new EquipoNotFoundException("Fuera de juego! No se encontró registros de equipo con Nombre " + nombre + ".");
+        });
 
-        if (equipoGuardado == null) {
-            throw new EquipoNotFoundException("Fuera de juego! No se encontró registros de equipo con Nombre " + nombre + ".");
-        }
-
-        return equipoMapper.toDTO(equipoGuardado);
+        return rspEquipo;
     }
 
     public EquipoDTO guardarEquipo(EquipoDTO equipo) {
 
-        Equipo equipoGuardado = equipoRepository.findByNombre(equipo.getNombre());
-
-        if (equipoGuardado != null) {
+        if (equipoRepository.existsByNombre(equipo.getNombre())) {
             throw new BusinessException("Tarjeta Amarilla! El Equipo " + equipo.getNombre() + " ya existe en la base de datos.");
         }
 
-        equipoGuardado = equipoRepository.save(equipoMapper.toEntity(equipo));
-        return new EquipoDTO("Success", "Gooool! El equipo " + equipoGuardado.getNombre() + " se guardó en la base de datos.");
+        Equipo rspEquipo = equipoRepository.save(mapper.toEntity(equipo));
+        return mapper.toRSPDTO(rspEquipo.getId(), "Success", "Gooool! El equipo " + equipo.getNombre() + " se guardó en la base de datos.");
+
     }
 
     public EquipoDTO eliminarEquipo(Long id) {
 
-        Equipo equipoGuardado = equipoRepository.findById(id)
+        Equipo rspEquipo = equipoRepository.findById(id)
                 .orElseThrow(() -> new EquipoNotFoundException("Fuera de juego! El equipo que deseas eliminar no existe en la base de datos"));
 
-        equipoRepository.deleteById(id);
+        equipoRepository.delete(rspEquipo);
 
-        return new EquipoDTO("Success", "Fin del juego! El equipo " + equipoGuardado.getNombre() + " ha sido eliminado correctamente de la base de datos.");
+        return mapper.toRSPDTO(id, "Success", "Fin del juego! El equipo " + rspEquipo.getNombre() + " ha sido eliminado correctamente.");
     }
 
-    public EquipoDTO actualizarEquipo(EquipoDTO equipoDTO) {
+    public EquipoDTO actualizarEquipo(EquipoDTO equipo) {
 
-         equipoRepository.findById(equipoDTO.getId())
-                .orElseThrow(() -> new EquipoNotFoundException("El equipo con ID " + equipoDTO.getId() + " no existe, no se puede actualizar."));
+        if (!equipoRepository.existsById(equipo.getId())) {
+            throw new EquipoNotFoundException("El equipo " + equipo.getNombre() + " no existe, no se puede actualizar.");
+        }
 
-        equipoRepository.save(equipoMapper.toEntity(equipoDTO));
-        
-         return new EquipoDTO("Success", "Gooool! El equipo " + equipoDTO.getNombre() + " se guardó en la base de datos.");
+         equipoRepository.save(mapper.toEntity(equipo));
+
+        return mapper.toRSPDTO(equipo.getId(), "Success", "Gooool! El equipo " + equipo.getNombre() + " se guardó en la base de datos.");
     }
 
 }

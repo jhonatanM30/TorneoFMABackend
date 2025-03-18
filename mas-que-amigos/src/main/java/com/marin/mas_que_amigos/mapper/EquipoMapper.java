@@ -8,8 +8,8 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class EquipoMapper {
-    
-     private final JugadorMapper jugadorMapper;
+
+    private final JugadorMapper jugadorMapper;
 
     // Constructor sin @Autowired para evitar referencia circular
     public EquipoMapper(JugadorMapper jugadorMapper) {
@@ -21,39 +21,47 @@ public class EquipoMapper {
         equipo.setNombre(dto.getNombre());
         equipo.setDirectorTecnico(dto.getDirectorTecnico());
         equipo.setImagenUrl(dto.getImagenUrl());
-        equipo.setTitulos(dto.getTitulos());      
+        equipo.setTitulos(dto.getTitulos());
+        equipo.setTipoClasificacion(dto.getTipoClasificacion());
         return equipo;
     }
 
     public EquipoDTO toDTO(Equipo equipo) {
         EquipoDTO dto = new EquipoDTO();
-        
+
         dto.setId(equipo.getId());
         dto.setNombre(equipo.getNombre());
         dto.setDirectorTecnico(equipo.getDirectorTecnico());
         dto.setImagenUrl(equipo.getImagenUrl());
-        dto.setTitulos(equipo.getTitulos());        
-         // Convertir lista de jugadores a DTO
+        dto.setTitulos(equipo.getTitulos());
+        dto.setTipoClasificacion(equipo.getTipoClasificacion());
+        // Convertir lista de jugadores a DTO
         if (equipo.getJugadores() != null) {
             dto.setJugadores(equipo.getJugadores()
-                .stream()
-                .map(jugadorMapper::toDTOOfTeam)
-                .collect(Collectors.toList()));
+                    .stream()
+                    .map(jugadorMapper::toDTOExt)
+                    .collect(Collectors.toList()));
         }
         dto.setIndicadorRespuesta("Success");
         dto.setMensaje("");
         return dto;
     }
-    
-     public EquipoDTO toDTOOfPlayer(Equipo equipo) {
+
+    public EquipoDTO toRSPDTO(Long id, String indicadorRespuesta, String mensaje) {
+
+        return new EquipoDTO(id, indicadorRespuesta, mensaje);
+            
+    }
+
+    public EquipoDTO toDTOExt(Equipo equipo) {
         EquipoDTO dto = new EquipoDTO();
-        
+
         dto.setId(equipo.getId());
         dto.setNombre(equipo.getNombre());
         dto.setDirectorTecnico(equipo.getDirectorTecnico());
         dto.setImagenUrl(equipo.getImagenUrl());
-        dto.setTitulos(equipo.getTitulos());        
-         
+        dto.setTitulos(equipo.getTitulos());
+        dto.setTipoClasificacion(equipo.getTipoClasificacion());
         return dto;
     }
 }

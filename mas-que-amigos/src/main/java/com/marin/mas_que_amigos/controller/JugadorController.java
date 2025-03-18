@@ -23,15 +23,20 @@ public class JugadorController {
         return jugadorService.listarJugadores();
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<JugadorDTO> obtenerJugador(@PathVariable int dorsal) {
-        JugadorDTO jugador = jugadorService.obtenerJugadorPorId(dorsal);
-        return ResponseEntity.ok(jugador);
+    @GetMapping("/{nombre}")
+    public ResponseEntity<List<JugadorDTO>> obtenerJugador(@PathVariable String nombre) {
+        List<JugadorDTO> rspjugadores = jugadorService.obtenerJugadorPorNombre(nombre);
+        return ResponseEntity.ok(rspjugadores);
     }
 
     @PostMapping
     public JugadorDTO crearJugador(@RequestBody JugadorDTO jugador) {
         return jugadorService.guardarJugador(jugador);
+    }
+    
+    @PutMapping
+    public JugadorDTO editarJugador(@RequestBody JugadorDTO jugador) {
+        return jugadorService.actualizarJugador(jugador);
     }
 
     @DeleteMapping("/{id}")

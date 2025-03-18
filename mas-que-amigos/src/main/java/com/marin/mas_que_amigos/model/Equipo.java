@@ -28,7 +28,10 @@ public class Equipo implements Serializable {
     private String imagenUrl;
 
     @Column(name = "titulos")
-    private int titulos;
+    private Integer titulos;
+    
+    @Column(name = "tipo_clasificacion")
+    private String tipoClasificacion;
 
     
     // Relación con jugadores (un equipo tiene muchos jugadores)

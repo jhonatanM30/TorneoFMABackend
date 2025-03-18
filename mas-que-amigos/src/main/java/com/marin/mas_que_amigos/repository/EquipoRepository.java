@@ -8,7 +8,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface EquipoRepository extends JpaRepository<Equipo, Long> {
     
-    Equipo findByNombre(String nombre);
+    Equipo findByNombreIgnoreCase(String nombre);
+    
+    boolean existsByNombre(String nombre);
+    
 
     
 }

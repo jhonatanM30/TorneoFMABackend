@@ -9,57 +9,63 @@ import org.springframework.stereotype.Component;
 @Component
 public class JugadorMapper {
 
-     private final EquipoMapper equipoMapper;
+    private final EquipoMapper equipoMapper;
 
     // Inyección con @Lazy para evitar la referencia circular
     public JugadorMapper(@Lazy EquipoMapper equipoMapper) {
         this.equipoMapper = equipoMapper;
     }
-    
-    public JugadorDTO toDTO(Jugador jugador) {
-    
-    JugadorDTO dto = new JugadorDTO();
-    
-    dto.setId(jugador.getId());
-    dto.setNombre(jugador.getNombre());
-    dto.setPosicion(jugador.getPosicion());
-    dto.setDorsal(jugador.getDorsal());
-    dto.setEdad(jugador.getEdad());
-
-    // Solo incluir el ID del equipo en vez de toda la entidad para evitar recursión infinita
-    dto.setIdEquipo(jugador.getEquipo().getId());
-    dto.setEquipo(equipoMapper.toDTOOfPlayer(jugador.getEquipo()));
-    dto.setIndicadorRespuesta("Success");
-    dto.setMensaje("");
-    return dto;
-}
-
 
     public Jugador toEntity(JugadorDTO dto) {
+
         Jugador jugador = new Jugador();
+
         jugador.setNombre(dto.getNombre());
         jugador.setPosicion(dto.getPosicion());
         jugador.setEdad(dto.getEdad());
         jugador.setDorsal(dto.getDorsal());
-        
-        // Evita una consulta extra a la base de datos, pero asigna una referencia
+      
         Equipo equipo = new Equipo();
-        equipo.setId(dto.getIdEquipo());
-        jugador.setEquipo(equipo); 
         
+        equipo.setId(dto.getIdEquipo());
+        jugador.setEquipo(equipo);
+
         return jugador;
     }
+
+    public JugadorDTO toDTO(Jugador jugador) {
+
+        JugadorDTO dto = new JugadorDTO();
+
+        dto.setId(jugador.getId());
+        dto.setNombre(jugador.getNombre());
+        dto.setPosicion(jugador.getPosicion());
+        dto.setDorsal(jugador.getDorsal());
+        dto.setEdad(jugador.getEdad());
+
+        // Solo incluir el ID del equipo en vez de toda la entidad para evitar recursión infinita
+        dto.setIdEquipo(jugador.getEquipo().getId());
+        dto.setEquipo(equipoMapper.toDTOExt(jugador.getEquipo()));
+        dto.setIndicadorRespuesta("Success");
+        dto.setMensaje("");
+        return dto;
+    }
+
+    public JugadorDTO toRSPDTO(String indicadorRespuesta, String mensaje){
     
-     public JugadorDTO toDTOOfTeam(Jugador jugador) {
+        return new JugadorDTO(indicadorRespuesta, mensaje);
+    }
     
-    JugadorDTO dto = new JugadorDTO();
-    
-    dto.setId(jugador.getId());
-    dto.setNombre(jugador.getNombre());
-    dto.setPosicion(jugador.getPosicion());
-    dto.setDorsal(jugador.getDorsal());
-    dto.setEdad(jugador.getEdad());
-  
-    return dto;
-}
+    public JugadorDTO toDTOExt(Jugador jugador) {
+
+        JugadorDTO dto = new JugadorDTO();
+
+        dto.setId(jugador.getId());
+        dto.setNombre(jugador.getNombre());
+        dto.setPosicion(jugador.getPosicion());
+        dto.setDorsal(jugador.getDorsal());
+        dto.setEdad(jugador.getEdad());
+
+        return dto;
+    }
 }
