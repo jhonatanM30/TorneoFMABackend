@@ -27,15 +27,16 @@ public class PartidoService {
     private final PartidoRepository partidoRepository;
     private final PartidoMapper partidoMapper;
 
-    public List<PartidoDTO> listarTodos() {
+    public List<PartidoDTO> listarPartidos() {
         return partidoRepository.findAll()
                 .stream()
                 .map(partidoMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
-    public List<PartidoDTO> buscarPorFecha(LocalDate fecha) {
-        List<PartidoDTO> partidos = partidoRepository.findByFecha(fecha)
+  
+    public List<PartidoDTO> buscarPartidoPorEquipo(String nombre) {
+        List<PartidoDTO> partidos = partidoRepository.findPartidosByEquipo(nombre)
                 .stream()
                 .map(partidoMapper::toDTO)
                 .collect(Collectors.toList());
@@ -47,6 +48,7 @@ public class PartidoService {
         }
 
     }
+    
 
     public PartidoDTO guardar(PartidoDTO partidoDTO) {
 

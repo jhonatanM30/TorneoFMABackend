@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+
 import org.springframework.web.bind.annotation.*;
 
 
@@ -27,17 +27,17 @@ public class PartidoController {
     private final PartidoService partidoService;
 
     @GetMapping
-    public ResponseEntity<List<PartidoDTO>> listarTodos() {
-        return ResponseEntity.ok(partidoService.listarTodos());
+    public ResponseEntity<List<PartidoDTO>> listarPartidos() {
+        return ResponseEntity.ok(partidoService.listarPartidos());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<List<PartidoDTO>> obtenerPorFecha(@PathVariable LocalDate fecha) {
-        return ResponseEntity.ok(partidoService.buscarPorFecha(fecha));
+    @GetMapping("/{nombre}")
+    public ResponseEntity<List<PartidoDTO>> buscarPartidoPorEquipo(@PathVariable String nombre) {
+        return ResponseEntity.ok(partidoService.buscarPartidoPorEquipo(nombre));
     }
 
     @PostMapping
-    public ResponseEntity<PartidoDTO> guardar(@RequestBody PartidoDTO partidoDTO) {
+    public ResponseEntity<PartidoDTO> crearPartido(@RequestBody PartidoDTO partidoDTO) {
         return ResponseEntity.ok(partidoService.guardar(partidoDTO));
     }
 

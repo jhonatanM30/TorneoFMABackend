@@ -24,23 +24,6 @@ public class PartidoMapper {
         this.equipoMapper = equipoMapper;
     }
 
-    public PartidoDTO toDTO(Partido partido) {
-        PartidoDTO dto = new PartidoDTO();
-        dto.setId(partido.getId());
-        dto.setFecha(partido.getFecha());
-        dto.setHora(partido.getHora());
-        dto.setGolesLocal(partido.getGolesLocal());
-        dto.setGolesVisitante(partido.getGolesVisitante());
-        dto.setFase(partido.getFase().name());
-
-        // Solo incluir los IDs de torneo y equipos
-        dto.setIdTorneo(partido.getIdTorneo());
-        dto.setIdEquipoLocal(partido.getEquipoLocal().getId());
-        dto.setIdEquipoVisitante(partido.getEquipoVisitante().getId());
-       
-        return dto;
-    }
-
     public Partido toEntity(PartidoDTO dto) {
         Partido partido = new Partido();
         partido.setFecha(dto.getFecha());
@@ -49,7 +32,6 @@ public class PartidoMapper {
         partido.setGolesVisitante(dto.getGolesVisitante());
         partido.setFase(Partido.Fase.FINAL);
 
-        
         Equipo equipoLocal = new Equipo();
         equipoLocal.setId(dto.getIdEquipoLocal());
         partido.setEquipoLocal(equipoLocal);
@@ -59,6 +41,26 @@ public class PartidoMapper {
         partido.setEquipoVisitante(equipoVisitante);
 
         return partido;
+    }
+
+    public PartidoDTO toDTO(Partido partido) {
+
+        PartidoDTO dto = new PartidoDTO();
+
+        dto.setId(partido.getId());
+        dto.setFecha(partido.getFecha());
+        dto.setHora(partido.getHora());
+        dto.setGolesLocal(partido.getGolesLocal());
+        dto.setGolesVisitante(partido.getGolesVisitante());
+        dto.setFase(partido.getFase().name());
+
+        dto.setEquipoLocal(equipoMapper.toDTOExt(partido.getEquipoLocal()));
+        dto.setEquipoVisitante(equipoMapper.toDTOExt(partido.getEquipoVisitante()));
+
+        dto.setIndicadorRespuesta("Success");
+        dto.setMensaje("");
+
+        return dto;
     }
 
 }

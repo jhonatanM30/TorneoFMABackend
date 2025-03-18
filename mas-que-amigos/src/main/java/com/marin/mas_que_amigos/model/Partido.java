@@ -34,10 +34,7 @@ public class Partido implements Serializable{
   @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "id_partido")
-    private Long id;
-  
-   @Column(name = "id_torneo")
-    private Long idTorneo;
+    private Long id; 
 
     @ManyToOne
     @JoinColumn(name = "equipo_local", nullable = false)

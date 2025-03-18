@@ -10,6 +10,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 /**
@@ -19,5 +21,10 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface PartidoRepository extends JpaRepository<Partido, Long> {
 
-    List<Partido> findByFecha(LocalDate fecha);
+    @Query("SELECT p FROM Partido p " +
+           "JOIN Equipo eLocal ON p.equipoLocal.id = eLocal.id " +
+           "JOIN Equipo eVisitante ON p.equipoVisitante.id = eVisitante.id " +
+           "WHERE eLocal.nombre = :nombre OR eVisitante.nombre = :nombre " +
+           "ORDER BY p.fecha ASC, p.hora ASC")
+    List<Partido> findPartidosByEquipo(@Param("nombre") String nombre);
 }
