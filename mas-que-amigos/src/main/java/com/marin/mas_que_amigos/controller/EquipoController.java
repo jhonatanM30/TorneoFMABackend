@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import org.springframework.validation.annotation.Validated;
 
 
 @RestController
@@ -26,11 +27,8 @@ public class EquipoController {
     }
 
     @GetMapping("/{nombre}")
-    public ResponseEntity<EquipoDTO> obtenerEquipo(@PathVariable String nombre) {
-        if (nombre == null || nombre.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(new EquipoDTO("Error", "El nombre del equipo es obligatorio."));
-        }
-        return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre));  // Retorna 200 OK con el equipo encontrado
+    public ResponseEntity<EquipoDTO> obtenerEquipo(@Validated @PathVariable String nombre) {
+        return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre)); 
     }
 
     @PostMapping
