@@ -21,10 +21,11 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor  // Constructor vacío necesario para serialización
 @AllArgsConstructor // Constructor con todos los campos
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class PartidoDTO {
 
     private Long id;
-
+    
     private Long idEquipoLocal;
 
     @JsonInclude(JsonInclude.Include.NON_NULL) // 🔹 Si equipo es null, no se muestra
@@ -53,5 +54,6 @@ public class PartidoDTO {
         this.indicadorRespuesta = indicadorRespuesta;
         this.mensaje = mensaje;
     }
+
 
 }

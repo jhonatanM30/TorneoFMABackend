@@ -62,5 +62,10 @@ public class PartidoMapper {
 
         return dto;
     }
+    
+    public PartidoDTO toRSPDTO(String indicadorRespuesta, String mensaje){
+    
+        return new PartidoDTO(indicadorRespuesta, mensaje);
+    }
 
 }

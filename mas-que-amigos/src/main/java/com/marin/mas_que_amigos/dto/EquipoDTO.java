@@ -1,7 +1,6 @@
 package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
-import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -17,10 +16,10 @@ public class EquipoDTO {
 
     private Long id;
 
-    @NotBlank(message = "El nombre del equipo es obligatorio.")
+    //@NotBlank(message = "El nombre del equipo es obligatorio.")
     private String nombre;
 
-    @NotBlank(message = "El nombre del Tecnico del equipo es obligatorio.")
+    //@NotBlank(message = "El nombre del Tecnico del equipo es obligatorio.")
     private String directorTecnico;
 
     //@NotBlank(message = "El escudo  del equipo es obligatorio.")
@@ -28,10 +27,7 @@ public class EquipoDTO {
 
     private Integer titulos;
 
-    //@NotBlank(message = "El nombre del equipo es obligatorio.")
-    private Integer idTorneo;
-
-    @NotBlank(message = "El tipo de clasificacion del equipo es obligatorio.")
+    //@NotBlank(message = "El tipo de clasificacion del equipo es obligatorio.")
     private String tipoClasificacion;
 
     private String indicadorRespuesta;

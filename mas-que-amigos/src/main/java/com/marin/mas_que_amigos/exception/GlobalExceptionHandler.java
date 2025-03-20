@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.exception;
 
 import com.marin.mas_que_amigos.dto.EquipoDTO;
+import com.marin.mas_que_amigos.dto.ErrorResponseDTO;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -37,16 +38,16 @@ public class GlobalExceptionHandler {
     
     
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<EquipoDTO> handleBusinessException(BusinessException ex) {
+    public ResponseEntity<ErrorResponseDTO> handleBusinessException(BusinessException ex) {
       
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(new EquipoDTO("Error", ex.getMessage()));
+                .body(new ErrorResponseDTO("Error", ex.getMessage()));
     }
     
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<EquipoDTO> handleGenericException(Exception ex) {
+    public ResponseEntity<ErrorResponseDTO> handleGenericException(Exception ex) {
          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new EquipoDTO("Error", ex.getMessage()));
+                .body(new ErrorResponseDTO("Error", ex.getMessage()));
     }
     
      @ExceptionHandler(MethodArgumentNotValidException.class)

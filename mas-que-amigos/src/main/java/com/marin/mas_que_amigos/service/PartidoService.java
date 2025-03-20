@@ -8,12 +8,11 @@ package com.marin.mas_que_amigos.service;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
-import com.marin.mas_que_amigos.model.Partido;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /**
@@ -25,20 +24,23 @@ import org.springframework.stereotype.Service;
 public class PartidoService {
 
     private final PartidoRepository partidoRepository;
-    private final PartidoMapper partidoMapper;
+
+    @Autowired
+    private ValidationCommonService validacionService;
+
+    private final PartidoMapper mapper;
 
     public List<PartidoDTO> listarPartidos() {
         return partidoRepository.findAll()
                 .stream()
-                .map(partidoMapper::toDTO)
+                .map(mapper::toDTO)
                 .collect(Collectors.toList());
     }
 
-  
     public List<PartidoDTO> buscarPartidoPorEquipo(String nombre) {
         List<PartidoDTO> partidos = partidoRepository.findPartidosByEquipo(nombre)
                 .stream()
-                .map(partidoMapper::toDTO)
+                .map(mapper::toDTO)
                 .collect(Collectors.toList());
 
         if (partidos != null) {
@@ -48,12 +50,23 @@ public class PartidoService {
         }
 
     }
-    
 
     public PartidoDTO guardar(PartidoDTO partidoDTO) {
 
-        Partido partido = partidoRepository.save(partidoMapper.toEntity(partidoDTO));
-        return partidoMapper.toDTO(partido);
+        validacionService.validarEquipo(partidoDTO.getIdEquipoLocal());
+        validacionService.validarEquipo(partidoDTO.getIdEquipoVisitante());
+
+        if (partidoDTO.getIdEquipoLocal().equals(partidoDTO.getIdEquipoVisitante())) {
+            throw new BusinessException("Los equipos seleccionados son los mismos. Un equipo no puede jugar contra sí mismo.");
+        }
+
+        if (partidoRepository.existePartidoEnFechaParaEquipos(partidoDTO.getFecha(), partidoDTO.getIdEquipoLocal(), partidoDTO.getIdEquipoVisitante())) {
+            throw new BusinessException("Ya existe un partido programado el dia " + partidoDTO.getFecha() + " para uno de estos equipos");
+        }
+
+        partidoRepository.save(mapper.toEntity(partidoDTO));
+        
+        return mapper.toRSPDTO("Success","Equipos, el partido ya fue programado");
     }
 
     public void eliminar(Long id) {

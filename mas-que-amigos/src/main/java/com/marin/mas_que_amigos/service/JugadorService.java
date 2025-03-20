@@ -4,26 +4,26 @@ import com.marin.mas_que_amigos.dto.JugadorDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
 import com.marin.mas_que_amigos.mapper.JugadorMapper;
-import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
 import org.springframework.stereotype.Service;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class JugadorService {
 
     private final JugadorRepository jugadorRepository;
     private final JugadorMapper mapper;
-    private final EquipoRepository equipoRepository;
 
-    public JugadorService(JugadorRepository jugadorRepository, JugadorMapper mapper, EquipoRepository equipoRepository) {
+    @Autowired
+    private ValidationCommonService validacionService;
+
+    public JugadorService(JugadorRepository jugadorRepository, JugadorMapper mapper) {
         this.jugadorRepository = jugadorRepository;
         this.mapper = mapper;
-        this.equipoRepository = equipoRepository;
     }
 
     public List<JugadorDTO> listarJugadores() {
@@ -47,8 +47,8 @@ public class JugadorService {
     }
 
     public JugadorDTO guardarJugador(JugadorDTO jugadorDTO) {
-        validarEquipo(jugadorDTO.getIdEquipo());       
-        validarDorsalDuplicado( jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), -1L);  // 🔹 -1 significa "no excluir ningún jugador"
+        validacionService.validarEquipo(jugadorDTO.getIdEquipo());
+        validarDorsalDuplicado(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), -1L);  // 🔹 -1 significa "no excluir ningún jugador"
 
         Jugador jugador = mapper.toEntity(jugadorDTO);
         jugadorRepository.save(jugador);
@@ -68,20 +68,14 @@ public class JugadorService {
 
     public JugadorDTO actualizarJugador(JugadorDTO jugadorDTO) {
 
-        validarEquipo(jugadorDTO.getIdEquipo());
+        validacionService.validarEquipo(jugadorDTO.getIdEquipo());
         validarJugadorExiste(jugadorDTO.getId(), jugadorDTO.getIdEquipo());
-        validarDorsalDuplicado( jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), jugadorDTO.getId());  // 🔹 -1 significa "no excluir ningún jugador"
+        validarDorsalDuplicado(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), jugadorDTO.getId());  // 🔹 -1 significa "no excluir ningún jugador"
 
         Jugador jugador = mapper.toEntity(jugadorDTO);
         jugadorRepository.save(jugador);
 
         return mapper.toRSPDTO("Success", "Gooool! El jugador " + jugador.getNombre() + " se actualizó en la base de datos.");
-    }
-
-    private void validarEquipo(Long idEquipo) {
-        if (idEquipo == null || !equipoRepository.existsById(idEquipo)) {
-            throw new BusinessException("Fuera de juego! No se ha seleccionado un equipo válido.");
-        }
     }
 
     private void validarJugadorExiste(Long idJugador, Long idEquipo) {
