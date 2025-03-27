@@ -2,7 +2,7 @@ package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.EquipoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
-import com.marin.mas_que_amigos.exception.EquipoNotFoundException;
+import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.EquipoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
@@ -36,7 +36,7 @@ public class EquipoService {
         EquipoDTO rspEquipo = Optional.ofNullable(equipoRepository.findByNombreIgnoreCase(nombre))
                 .map(mapper::toDTO) // Si el equipo existe, lo convierte a DTO
                 .orElseThrow(() -> {
-            return new EquipoNotFoundException("Fuera de juego! No se encontró registros de equipo con Nombre " + nombre + ".");
+            return new NotFoundException("Fuera de juego! No se encontró registros de equipo con Nombre " + nombre + ".");
         });
 
         return rspEquipo;
@@ -56,7 +56,7 @@ public class EquipoService {
     public EquipoDTO eliminarEquipo(Long id) {
 
         Equipo rspEquipo = equipoRepository.findById(id)
-                .orElseThrow(() -> new EquipoNotFoundException("Fuera de juego! El equipo que deseas eliminar no existe en la base de datos"));
+                .orElseThrow(() -> new NotFoundException("Fuera de juego! El equipo que deseas eliminar no existe en la base de datos"));
 
         equipoRepository.delete(rspEquipo);
 
@@ -66,7 +66,7 @@ public class EquipoService {
     public EquipoDTO actualizarEquipo(EquipoDTO equipo) {
 
         if (!equipoRepository.existsById(equipo.getId())) {
-            throw new EquipoNotFoundException("El equipo " + equipo.getNombre() + " no existe, no se puede actualizar.");
+            throw new NotFoundException("El equipo " + equipo.getNombre() + " no existe, no se puede actualizar.");
         }
 
          equipoRepository.save(mapper.toEntity(equipo));

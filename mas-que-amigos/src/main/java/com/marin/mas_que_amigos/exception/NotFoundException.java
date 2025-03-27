@@ -9,9 +9,9 @@ package com.marin.mas_que_amigos.exception;
  *
  * @author JhonatanAlexanderCue
  */
-public class EquipoNotFoundException extends RuntimeException{
+public class NotFoundException extends RuntimeException{
     
-    public EquipoNotFoundException(String mensaje) {
+    public NotFoundException(String mensaje) {
         super(mensaje);
     }
     
