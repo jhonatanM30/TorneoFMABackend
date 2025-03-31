@@ -22,15 +22,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     
-    @ExceptionHandler(EquipoNotFoundException.class)
-    public ResponseEntity<EquipoDTO> handleEquipoNotFound(EquipoNotFoundException ex) {        
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<EquipoDTO> handleEquipoNotFound(NotFoundException ex) {        
         
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new EquipoDTO("Sin Registros", ex.getMessage()));
     }
     
     @ExceptionHandler(JugadorNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleJugadorNotFound(EquipoNotFoundException ex) {
+    public ResponseEntity<Map<String, String>> handleJugadorNotFound(NotFoundException ex) {
         Map<String, String> response = new HashMap<>();
         response.put("error", ex.getMessage());
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
