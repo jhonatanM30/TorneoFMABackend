@@ -30,7 +30,7 @@ public class GlobalExceptionHandler {
     }
     
     @ExceptionHandler(JugadorNotFoundException.class)
-    public ResponseEntity<Map<String, String>> handleJugadorNotFound(NotFoundException ex) {
+    public ResponseEntity<Map<String, String>> handleJugadorNotFound(JugadorNotFoundException ex) {
         Map<String, String> response = new HashMap<>();
         response.put("error", ex.getMessage());
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

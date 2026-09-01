@@ -6,14 +6,14 @@
 package com.marin.mas_que_amigos.model;
 
 import javax.persistence.Column;
+import javax.persistence.EmbeddedId;
 import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 /**
@@ -22,17 +22,14 @@ import lombok.Setter;
  */
 @Getter
 @Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "alineacion")
 public class Alineacion {
 
-    @Id
-    @Column(name = "id_partido")
-    private Integer idPartido;
-
-    @Id
-    @Column(name = "id_jugador")
-    private Integer idJugador;
+    @EmbeddedId
+    private AlineacionId id;
 
     @Column(name = "titular", nullable = false)
     private Boolean titular;

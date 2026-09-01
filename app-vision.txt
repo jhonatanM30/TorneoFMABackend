@@ -1,0 +1,56 @@
+Actúa como un ingeniero de software senior a cargo de finalizar y poner en producción un proyecto full-stack existente (backend + frontend). Es un proyecto real, ya funcional en su mayoría, no un desarrollo desde cero. Trabaja fase por fase, sin saltarte pasos, y usa tu gestor de tareas interno para llevar seguimiento visible del progreso.
+
+CONTEXTO
+- El backend ya existe en la ruta C:\FICOHSA\RutaAprendizaje\mas-que-amigos y tiene un README.md que describe el alcance funcional esperado.
+- Actualmente usa base de datos H2 y debe migrarse a MySQL(Al menos configurar las propiedades y dependencia necesarias y que la migracion sea despues de las pruebas con h2)
+- Existe un frontend en la ruta C:\FICOHSA\RutaAprendizaje\MasQueAmigos-Torneo básico ya construido, pero nunca se ha probado contra el backend.
+- Objetivo final: backend completo según el README, documentado con Swagger/OpenAPI, funcionando sobre MySQL con su esquema versionado cuando finalice las pruebas con h2, con documentación de despliegue, y un frontend que consuma correctamente las APIs.
+
+FASE 0 — Diagnóstico (no escribas código todavía)
+1. Lee el README.md del backend y, si existe, el del frontend.
+2. Detecta el stack tecnológico real (lenguaje, framework, gestor de dependencias, framework de pruebas, framework frontend) inspeccionando el código, sin asumir nada.
+3. Ejecuta la suite de pruebas existente y reporta el resultado.
+4. Compara el código actual contra lo descrito en el README y lista: (a) funcionalidades completas, (b) funcionalidades incompletas o rotas, (c) inconsistencias entre README y código.
+5. Muéstrame ese diagnóstico como lista de tareas y espera mi confirmación antes de tocar código.
+6. Si evidencias inconsistencias entre lo que esta implementado y lo que se quiere lograr preguntame para corregir y actualizar
+
+FASE 1 — Cierre funcional del backend
+- Implementa o corrige lo identificado en el diagnóstico para que el backend cumpla completamente el README.
+- No agregues funcionalidades fuera del alcance del README sin consultarme antes.
+- Añade o corrige pruebas unitarias/de integración para todo lo que modifiques.
+- Corre toda la suite de pruebas al final y confírmame que pasa antes de avanzar a la Fase 2.
+
+FASE 2 — Documentación de API con Swagger/OpenAPI
+- Integra la librería de OpenAPI/Swagger adecuada al framework detectado (por ejemplo springdoc-openapi si es Spring Boot, swagger-jsdoc/swagger-ui-express si es Node/Express, drf-spectacular si es Django, etc.).
+- Documenta todos los endpoints reales del backend ya cerrado en la Fase 1: parámetros, cuerpos de petición/respuesta, códigos de estado y modelos de datos.
+- Expón la UI de Swagger en una ruta clara y verifícala levantando el backend localmente.
+
+FASE 3 — Migración de H2 a MySQL
+- Diseña el esquema de base de datos MySQL equivalente a las entidades/modelos actuales.
+- Entrégalo como script DDL SQL ejecutable (CREATE TABLE, claves foráneas, índices, tipos de datos correctos para MySQL).
+- Introduce una herramienta de versionado de esquema (Flyway o Liquibase, la que mejor encaje con el stack) en vez de dejar el esquema suelto, con el DDL como primera migración.
+- Actualiza la configuración de persistencia del backend para usar MySQL (dialecto, driver, variables de entorno para host/usuario/clave/puerto/nombre de base), dejando H2 solo como perfil de pruebas si tiene sentido.
+- Verifica que el backend arranca y las pruebas pasan contra un MySQL real (usa un contenedor Docker local para validarlo).
+- Muéstrame el plan de migración antes de aplicarlo y espera mi aprobación.
+
+FASE 4 — Documentación de despliegue
+- Crea un DEPLOYMENT.md con: requisitos previos (versiones de runtime, MySQL, etc.), variables de entorno necesarias y su significado, pasos de build, pasos de ejecución en local y en un entorno tipo servidor, y cómo aplicar las migraciones de base de datos.
+- Crea o valida si existe un docker-compose.yml que levante backend + MySQL (+ frontend si aplica) con un solo comando, con variables externalizadas en un .env.example.
+
+FASE 5 — Frontend
+- Revisa el frontend existente e identifica qué falta para que consuma correctamente las APIs ya finalizadas.
+- Configura la URL base de la API por variable de entorno/configuración, nunca hardcodeada.
+- Completa las integraciones faltantes (llamadas HTTP, manejo de errores, mapeo de datos) para cubrir al menos las funcionalidades principales del README.
+- Verifica, levantando backend y frontend juntos, que cada endpoint clave funciona de extremo a extremo desde la interfaz.
+
+FASE 6 — Verificación final
+- Ejecuta toda la suite de pruebas de backend y, si existen, de frontend.
+- Levanta todo el stack con docker-compose y valida al menos un flujo de negocio completo, de principio a fin, desde el frontend hasta la base de datos.
+- Entrégame un resumen final: qué se hizo en cada fase, qué decisiones tomaste y por qué, y qué queda pendiente si algo no se pudo completar.
+
+REGLAS DE TRABAJO
+- Avanza fase por fase; no empieces la siguiente sin haber cerrado y confirmado la anterior.
+- Antes de cambios estructurales importantes (migración de BD, configuración de despliegue), muéstrame el plan y espera mi aprobación explícita.
+- Haz commits de git separados y descriptivos por cada fase o sub-tarea significativa; nunca un único commit gigante al final.
+- No elimines ni sobrescribas funcionalidad existente que ya cumple el README sin justificarlo primero.
+- Si encuentras ambigüedades entre lo que dice el README y lo que parece necesitar el negocio, pregúntame antes de decidir por tu cuenta.

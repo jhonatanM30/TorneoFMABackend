@@ -9,15 +9,29 @@ package com.marin.mas_que_amigos.dto;
  *
  * @author JhonatanAlexanderCue
  */
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotNull;
 import lombok.Data;
 
 @Data
 public class EstadisticaDTO {
     private Long id;
+
+    @NotNull(message = "El id del jugador es obligatorio.")
     private Long idJugador;
+
+    @NotNull(message = "El id del partido es obligatorio.")
     private Long idPartido;
+
+    @Min(value = 0, message = "Los goles no pueden ser negativos.")
     private int goles;
+
+    @Min(value = 0, message = "Las tarjetas amarillas no pueden ser negativas.")
     private int tarjetasAmarillas;
+
+    @Min(value = 0, message = "Las tarjetas rojas no pueden ser negativas.")
     private int tarjetasRojas;
+
+    @Min(value = 0, message = "Las asistencias no pueden ser negativas.")
     private int asistencias;
 }

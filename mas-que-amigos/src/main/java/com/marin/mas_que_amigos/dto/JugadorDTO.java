@@ -2,6 +2,9 @@ package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.marin.mas_que_amigos.model.Jugador.Posicion;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -15,30 +18,27 @@ public class JugadorDTO {
 
     private Long id;
 
-    //@NotBlank(message = "El nombre del jugador es obligatorio.")
+    @NotBlank(message = "El nombre del jugador es obligatorio.")
     private String nombre;
 
-    //@NotNull(message = "La posicion del jugador es obligatorio.")
+    @NotNull(message = "La posición del jugador es obligatoria.")
     private Posicion posicion;
 
-    //@NotNull(message = "La edad del jugador es obligatorio.")
+    @Min(value = 1, message = "La edad debe ser mayor a 0.")
     private int edad;
 
-    //@NotNull(message = "El dorsal del jugador es obligatorio.")
+    @Min(value = 1, message = "El dorsal debe ser mayor a 0.")
     private int dorsal;
-    
+
     private String indicadorRespuesta;
     private String mensaje;
 
-   
-
-    @JsonInclude(JsonInclude.Include.NON_NULL) // 🔹 Si idEquipo es null, no se muestra
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private Long idEquipo;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL) // 🔹 Si equipo es null, no se muestra
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     private EquipoDTO equipo;
-    
-     // 🔹 Constructor solo con `indicadorRespuesta` y `mensaje`
+
     public JugadorDTO(String indicadorRespuesta, String mensaje) {
         this.indicadorRespuesta = indicadorRespuesta;
         this.mensaje = mensaje;

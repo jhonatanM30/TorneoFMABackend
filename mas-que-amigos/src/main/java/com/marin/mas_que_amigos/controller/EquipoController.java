@@ -4,14 +4,17 @@ import com.marin.mas_que_amigos.dto.EquipoDTO;
 import com.marin.mas_que_amigos.service.EquipoService;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import org.springframework.validation.annotation.Validated;
+import javax.validation.Valid;
+import javax.validation.constraints.Min;
 
 
 @RestController
 @RequestMapping("/api/equipos")
+@Validated
 public class EquipoController {
 
     private final EquipoService equipoService;
@@ -27,22 +30,22 @@ public class EquipoController {
     }
 
     @GetMapping("/{nombre}")
-    public ResponseEntity<EquipoDTO> obtenerEquipo(@Validated @PathVariable String nombre) {
-        return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre)); 
+    public ResponseEntity<EquipoDTO> obtenerEquipo(@PathVariable String nombre) {
+        return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre));
     }
 
     @PostMapping
-    public EquipoDTO crearEquipo(@RequestBody EquipoDTO equipo) {
+    public EquipoDTO crearEquipo(@Valid @RequestBody EquipoDTO equipo) {
         return equipoService.guardarEquipo(equipo);
     }
-    
+
     @PutMapping
-    public EquipoDTO editarEquipo(@RequestBody EquipoDTO equipo) {
+    public EquipoDTO editarEquipo(@Valid @RequestBody EquipoDTO equipo) {
         return equipoService.actualizarEquipo(equipo);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminarEquipo(@PathVariable Long id) {
+    public ResponseEntity<Void> eliminarEquipo(@PathVariable @Min(1) Long id) {
         equipoService.eliminarEquipo(id);
         return ResponseEntity.noContent().build();
     }

@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.mapper;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
 import org.springframework.context.annotation.Lazy;
@@ -30,7 +31,7 @@ public class PartidoMapper {
         partido.setHora(dto.getHora());
         partido.setGolesLocal(dto.getGolesLocal());
         partido.setGolesVisitante(dto.getGolesVisitante());
-        partido.setFase(Partido.Fase.FINAL);
+        partido.setFase(resolverFase(dto.getFase()));
 
         Equipo equipoLocal = new Equipo();
         equipoLocal.setId(dto.getIdEquipoLocal());
@@ -66,6 +67,21 @@ public class PartidoMapper {
     public PartidoDTO toRSPDTO(String indicadorRespuesta, String mensaje){
     
         return new PartidoDTO(indicadorRespuesta, mensaje);
+    }
+
+    // 🔹 Antes se ignoraba el valor de "fase" recibido en el DTO y siempre se
+    // guardaba como FINAL. Ahora se respeta lo que envía el cliente y, si no
+    // envía nada, se asume la fase inicial de un torneo (fase de grupos).
+    private Partido.Fase resolverFase(String fase) {
+        if (fase == null || fase.trim().isEmpty()) {
+            return Partido.Fase.FASE_DE_GRUPOS;
+        }
+
+        try {
+            return Partido.Fase.valueOf(fase.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new BusinessException("Fase de partido inválida: " + fase);
+        }
     }
 
 }

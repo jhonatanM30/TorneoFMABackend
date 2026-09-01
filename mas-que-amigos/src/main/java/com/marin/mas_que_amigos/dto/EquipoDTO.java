@@ -2,6 +2,8 @@ package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.util.List;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -16,18 +18,21 @@ public class EquipoDTO {
 
     private Long id;
 
-    //@NotBlank(message = "El nombre del equipo es obligatorio.")
+    @NotBlank(message = "El nombre del equipo es obligatorio.")
+    @Size(max = 100, message = "El nombre del equipo no puede exceder 100 caracteres.")
     private String nombre;
 
-    //@NotBlank(message = "El nombre del Tecnico del equipo es obligatorio.")
+    @NotBlank(message = "El nombre del técnico del equipo es obligatorio.")
+    @Size(max = 100, message = "El nombre del técnico no puede exceder 100 caracteres.")
     private String directorTecnico;
 
-    //@NotBlank(message = "El escudo  del equipo es obligatorio.")
+    @Size(max = 255, message = "La URL de la imagen no puede exceder 255 caracteres.")
     private String imagenUrl;
 
     private Integer titulos;
 
-    //@NotBlank(message = "El tipo de clasificacion del equipo es obligatorio.")
+    @NotBlank(message = "El tipo de clasificación es obligatorio.")
+    @Size(max = 50, message = "El tipo de clasificación no puede exceder 50 caracteres.")
     private String tipoClasificacion;
 
     private String indicadorRespuesta;

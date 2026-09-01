@@ -8,9 +8,11 @@ package com.marin.mas_que_amigos.controller;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.service.PartidoService;
 import java.util.List;
+import javax.validation.Valid;
+import javax.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/partidos")
 @RequiredArgsConstructor
+@Validated
 public class PartidoController {
 
     private final PartidoService partidoService;
@@ -36,12 +39,12 @@ public class PartidoController {
     }
 
     @PostMapping
-    public ResponseEntity<PartidoDTO> crearPartido(@RequestBody PartidoDTO partidoDTO) {
+    public ResponseEntity<PartidoDTO> crearPartido(@Valid @RequestBody PartidoDTO partidoDTO) {
         return ResponseEntity.ok(partidoService.guardar(partidoDTO));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Long id) {
+    public ResponseEntity<Void> eliminar(@PathVariable @Min(1) Long id) {
         partidoService.eliminar(id);
         return ResponseEntity.noContent().build();
     }

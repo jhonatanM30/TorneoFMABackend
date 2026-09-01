@@ -5,6 +5,7 @@
  */
 package com.marin.mas_que_amigos.dto;
 
+import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,9 +21,22 @@ import lombok.Setter;
 @AllArgsConstructor // Constructor con todos los campos
 public class AlineacionDTO {
 
+    @NotNull(message = "El id del partido es obligatorio.")
     private Long idPartido;
+
+    @NotNull(message = "El id del jugador es obligatorio.")
     private Long idJugador;
+
     private boolean titular;
     private PartidoDTO partido;
     private JugadorDTO jugador;
+
+    private String indicadorRespuesta;
+    private String mensaje;
+
+    // 🔹 Constructor solo con `indicadorRespuesta` y `mensaje`
+    public AlineacionDTO(String indicadorRespuesta, String mensaje) {
+        this.indicadorRespuesta = indicadorRespuesta;
+        this.mensaje = mensaje;
+    }
 }

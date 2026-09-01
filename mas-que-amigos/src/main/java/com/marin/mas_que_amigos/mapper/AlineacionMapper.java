@@ -7,6 +7,7 @@ package com.marin.mas_que_amigos.mapper;
 
 import com.marin.mas_que_amigos.dto.AlineacionDTO;
 import com.marin.mas_que_amigos.model.Alineacion;
+import com.marin.mas_que_amigos.model.AlineacionId;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.Partido;
 import org.springframework.stereotype.Component;
@@ -20,6 +21,8 @@ public class AlineacionMapper {
 
     public Alineacion toEntity(AlineacionDTO dto) {
         Alineacion alineacion = new Alineacion();
+
+        alineacion.setId(new AlineacionId(dto.getIdPartido(), dto.getIdJugador()));
 
         Partido partido = new Partido();
         partido.setId(dto.getIdPartido());
@@ -37,11 +40,17 @@ public class AlineacionMapper {
     public AlineacionDTO toDTO(Alineacion entity) {
         AlineacionDTO dto = new AlineacionDTO();
 
-        dto.setIdPartido(entity.getPartido().getId());
-        dto.setIdJugador(entity.getJugador().getId());
+        dto.setIdPartido(entity.getId().getIdPartido());
+        dto.setIdJugador(entity.getId().getIdJugador());
         dto.setTitular(entity.getTitular());
+        dto.setIndicadorRespuesta("Success");
+        dto.setMensaje("");
 
         return dto;
     }
-    
+
+    public AlineacionDTO toRSPDTO(String indicadorRespuesta, String mensaje) {
+        return new AlineacionDTO(indicadorRespuesta, mensaje);
+    }
+
 }
