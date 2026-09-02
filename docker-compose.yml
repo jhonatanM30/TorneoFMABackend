@@ -1,0 +1,34 @@
+# Levanta el backend apuntando al MySQL que YA tienes corriendo en Docker
+# (el contenedor que creaste manualmente en la Fase 3, publicado en el
+# puerto 3308 del host). No define un servicio "mysql" propio a propósito,
+# para no crear un segundo contenedor de base de datos separado del que ya
+# usas y ya tiene datos de prueba.
+#
+# Si en otra máquina (o servidor) NO existe ya un MySQL corriendo, agrega
+# el servicio "mysql" documentado en DEPLOYMENT.md y cambia DB_HOST a
+# "mysql" en el archivo .env.
+#
+# Uso:
+#   1. cp .env.example .env   (y ajusta los valores si hacen falta)
+#   2. docker compose up --build
+
+services:
+  backend:
+    build:
+      context: ./mas-que-amigos
+      dockerfile: Dockerfile
+    ports:
+      - "${SERVER_PORT:-57075}:57075"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${DB_HOST:-host.docker.internal}:${DB_PORT:-3308}/${DB_NAME:-masqueamigos}?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true"
+      SPRING_DATASOURCE_USERNAME: "${DB_USER:-masqueamigos}"
+      SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:-desarrollo}"
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"
+    # Permite que el contenedor del backend resuelva "host.docker.internal"
+    # y llegue así al MySQL publicado en el host. En Docker Desktop
+    # (Windows/Mac) ya funciona sin esto; se agrega para que el mismo
+    # docker-compose.yml también funcione en un servidor Linux con Docker
+    # Engine (Compose v2.x+), donde host.docker.internal no viene predefinido.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

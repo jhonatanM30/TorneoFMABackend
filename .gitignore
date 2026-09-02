@@ -1,0 +1,3 @@
+# Variables de entorno reales para docker-compose (contiene credenciales
+# locales). Se versiona .env.example como plantilla, nunca .env.
+.env
