@@ -1,7 +1,6 @@
 package com.marin.mas_que_amigos.mapper;
 
 import com.marin.mas_que_amigos.dto.JugadorDTO;
-import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -16,6 +15,11 @@ public class JugadorMapper {
         this.equipoMapper = equipoMapper;
     }
 
+    // No asigna el Equipo aquí: el servicio es quien resuelve y asigna la
+    // entidad Equipo real (ya persistida) tras llamar a este método. Antes
+    // se construía aquí un Equipo "shell" (solo con el id) que quedaba en
+    // memoria con el resto de sus campos en null, y esos nulls se filtraban
+    // de vuelta en la respuesta al mapear la entidad "guardada" a DTO.
     public Jugador toEntity(JugadorDTO dto) {
 
         Jugador jugador = new Jugador();
@@ -24,11 +28,6 @@ public class JugadorMapper {
         jugador.setPosicion(dto.getPosicion());
         jugador.setEdad(dto.getEdad());
         jugador.setDorsal(dto.getDorsal());
-      
-        Equipo equipo = new Equipo();
-        
-        equipo.setId(dto.getIdEquipo());
-        jugador.setEquipo(equipo);
 
         return jugador;
     }
@@ -51,11 +50,6 @@ public class JugadorMapper {
         return dto;
     }
 
-    public JugadorDTO toRSPDTO(String indicadorRespuesta, String mensaje){
-    
-        return new JugadorDTO(indicadorRespuesta, mensaje);
-    }
-    
     public JugadorDTO toDTOExt(Jugador jugador) {
 
         JugadorDTO dto = new JugadorDTO();

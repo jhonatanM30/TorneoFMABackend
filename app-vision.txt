@@ -30,7 +30,7 @@ FASE 3 — Migración de H2 a MySQL
 - Entrégalo como script DDL SQL ejecutable (CREATE TABLE, claves foráneas, índices, tipos de datos correctos para MySQL).
 - Introduce una herramienta de versionado de esquema (Flyway o Liquibase, la que mejor encaje con el stack) en vez de dejar el esquema suelto, con el DDL como primera migración.
 - Actualiza la configuración de persistencia del backend para usar MySQL (dialecto, driver, variables de entorno para host/usuario/clave/puerto/nombre de base), dejando H2 solo como perfil de pruebas si tiene sentido.
-- Verifica que el backend arranca y las pruebas pasan contra un MySQL real (usa un contenedor Docker local para validarlo).
+- Verifica que el backend arranca y las pruebas pasan contra un MySQL real (usa un contenedor Docker local para validarlo)aunque veo que tengo una imagen de Mysql en docker pero no veo contenedor.
 - Muéstrame el plan de migración antes de aplicarlo y espera mi aprobación.
 
 FASE 4 — Documentación de despliegue

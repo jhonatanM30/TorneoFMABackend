@@ -5,6 +5,8 @@
  */
 package com.marin.mas_que_amigos.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -28,7 +30,17 @@ public class AlineacionDTO {
     private Long idJugador;
 
     private boolean titular;
+
+    // 🔹 Se completan al responder (AlineacionMapper.toDTO) con el detalle
+    // completo del partido y del jugador, siguiendo la misma convención que
+    // EquipoDTO.jugadores/JugadorDTO.equipo/PartidoDTO.equipoLocal. Nunca se
+    // leen en el request, así que se marcan de solo lectura.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private PartidoDTO partido;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private JugadorDTO jugador;
 
     private String indicadorRespuesta;

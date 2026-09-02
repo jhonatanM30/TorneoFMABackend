@@ -47,12 +47,6 @@ public class EquipoMapper {
         return dto;
     }
 
-    public EquipoDTO toRSPDTO(Long id, String indicadorRespuesta, String mensaje) {
-
-        return new EquipoDTO(id, indicadorRespuesta, mensaje);
-            
-    }
-
     public EquipoDTO toDTOExt(Equipo equipo) {
         EquipoDTO dto = new EquipoDTO();
 

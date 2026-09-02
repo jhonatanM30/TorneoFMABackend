@@ -7,7 +7,6 @@ package com.marin.mas_que_amigos.mapper;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
-import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
@@ -25,6 +24,10 @@ public class PartidoMapper {
         this.equipoMapper = equipoMapper;
     }
 
+    // No asigna equipoLocal/equipoVisitante aquí: el servicio resuelve y
+    // asigna las entidades Equipo reales (ya persistidas) tras llamar a este
+    // método, igual que en JugadorMapper, para evitar Equipos "shell" con
+    // campos en null en la respuesta.
     public Partido toEntity(PartidoDTO dto) {
         Partido partido = new Partido();
         partido.setFecha(dto.getFecha());
@@ -32,15 +35,6 @@ public class PartidoMapper {
         partido.setGolesLocal(dto.getGolesLocal());
         partido.setGolesVisitante(dto.getGolesVisitante());
         partido.setFase(resolverFase(dto.getFase()));
-
-        Equipo equipoLocal = new Equipo();
-        equipoLocal.setId(dto.getIdEquipoLocal());
-        partido.setEquipoLocal(equipoLocal);
-
-        Equipo equipoVisitante = new Equipo();
-        equipoVisitante.setId(dto.getIdEquipoVisitante());
-        partido.setEquipoVisitante(equipoVisitante);
-
         return partido;
     }
 
@@ -62,11 +56,6 @@ public class PartidoMapper {
         dto.setMensaje("");
 
         return dto;
-    }
-    
-    public PartidoDTO toRSPDTO(String indicadorRespuesta, String mensaje){
-    
-        return new PartidoDTO(indicadorRespuesta, mensaje);
     }
 
     // 🔹 Antes se ignoraba el valor de "fase" recibido en el DTO y siempre se

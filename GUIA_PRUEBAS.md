@@ -52,7 +52,11 @@ curl -X POST http://localhost:57075/api/equipos \
 
 **Respuesta esperada:**
 - Status: 200 OK
-- Body: DTO con indicadorRespuesta="Success"
+- Body: la entidad completa recién guardada (id, nombre, directorTecnico,
+  imagenUrl, titulos, tipoClasificacion, jugadores: [], indicadorRespuesta,
+  mensaje). Ya no se devuelven solo indicadorRespuesta/mensaje: los demás
+  campos venían en null, así que ahora se retorna la representación completa
+  del recurso (buena práctica REST para creación/edición).
 
 #### 1.2 Crear equipo #2
 ```bash
@@ -97,6 +101,11 @@ curl -X PUT http://localhost:57075/api/equipos \
   }'
 ```
 
+**Respuesta esperada:**
+- Status: 200 OK
+- Body: la entidad completa con los datos actualizados (incluye jugadores del
+  equipo, que nunca se pierden al editar).
+
 ---
 
 ### 2️⃣ JUGADORES
@@ -115,6 +124,11 @@ curl -X POST http://localhost:57075/api/jugadores \
 ```
 
 **Nota:** El idEquipo=1 debe corresponder al ID retornado al crear el equipo #1. Si es diferente, ajusta.
+
+**Respuesta esperada:**
+- Status: 200 OK
+- Body: la entidad completa del jugador guardado, incluyendo el detalle del
+  equipo real al que pertenece (`equipo`), no solo su id.
 
 #### 2.2 Crear más jugadores en Deportivo Cali
 ```bash
@@ -228,6 +242,10 @@ curl -X PUT http://localhost:57075/api/jugadores \
   }'
 ```
 
+**Respuesta esperada:**
+- Status: 200 OK
+- Body: la entidad completa del jugador con los datos actualizados.
+
 ---
 
 ### 3️⃣ PARTIDOS
@@ -243,11 +261,18 @@ curl -X POST http://localhost:57075/api/partidos \
     "hora": "19:00:00",
     "golesLocal": 0,
     "golesVisitante": 0,
-    "fase": "Jornada 1"
+    "fase": "FASE_DE_GRUPOS"
   }'
 ```
 
-**Nota:** Usa los IDs reales de los equipos. Ajusta si es necesario.
+**Nota:** Usa los IDs reales de los equipos. Ajusta si es necesario. El campo
+`fase` debe ser uno de: `FASE_DE_GRUPOS`, `REPECHAJE`, `ELIMINACION_DIRECTA`,
+`FINAL` (si se omite, se asume `FASE_DE_GRUPOS`).
+
+**Respuesta esperada:**
+- Status: 200 OK
+- Body: la entidad completa del partido, incluyendo el detalle de
+  `equipoLocal` y `equipoVisitante` (no solo sus ids).
 
 #### 3.2 Crear otro partido
 ```bash
@@ -260,7 +285,7 @@ curl -X POST http://localhost:57075/api/partidos \
     "hora": "20:00:00",
     "golesLocal": 0,
     "golesVisitante": 0,
-    "fase": "Jornada 2"
+    "fase": "REPECHAJE"
   }'
 ```
 
@@ -502,6 +527,12 @@ Marca ✅ cada punto conforme lo pruebas:
 2. **Orden de ejecución:** Siempre crea equipos primero, luego jugadores, luego partidos.
 
 3. **Validación:** La API rechazará datos inválidos con Status 400 y un mensaje de error.
+
+3.1. **Formato de respuesta en creación/edición:** los endpoints POST y PUT
+   devuelven la entidad completa recién guardada/actualizada (no solo un
+   mensaje de éxito), siguiendo la práctica REST estándar. Los campos
+   `indicadorRespuesta`/`mensaje` se mantienen por compatibilidad con el
+   frontend actual. Los DELETE devuelven `204 No Content` sin body.
 
 4. **Base de datos H2:** Los datos se guardan en memoria durante la ejecución. Si reinician la aplicación, se pierden.
 

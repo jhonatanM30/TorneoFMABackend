@@ -4,6 +4,7 @@ import com.marin.mas_que_amigos.dto.JugadorDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
 import com.marin.mas_que_amigos.mapper.JugadorMapper;
+import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
@@ -16,13 +17,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 public class JugadorService {
 
     private final JugadorRepository jugadorRepository;
+    private final EquipoRepository equipoRepository;
     private final JugadorMapper mapper;
 
     @Autowired
     private ValidationCommonService validacionService;
 
-    public JugadorService(JugadorRepository jugadorRepository, JugadorMapper mapper) {
+    public JugadorService(JugadorRepository jugadorRepository, EquipoRepository equipoRepository, JugadorMapper mapper) {
         this.jugadorRepository = jugadorRepository;
+        this.equipoRepository = equipoRepository;
         this.mapper = mapper;
     }
 
@@ -46,24 +49,31 @@ public class JugadorService {
                 .collect(Collectors.toList());
     }
 
-    public JugadorDTO guardarJugador(JugadorDTO jugadorDTO) {
-        validacionService.validarEquipo(jugadorDTO.getIdEquipo());
-        validarDorsalDuplicado(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), -1L);  // 🔹 -1 significa "no excluir ningún jugador"
+    public JugadorDTO guardarJugador(JugadorDTO jugadorDTO) {       
+        
+        // Se resuelve la entidad Equipo real (ya persistida) en vez de dejar que
+        // el mapper construya un Equipo "shell" con solo el id: así el jugador
+        // guardado queda con la asociación completamente hidratada y la
+        // respuesta incluye los datos reales del equipo, no campos en null.
+        Equipo equipoReal = equipoRepository.findById(jugadorDTO.getIdEquipo())
+                .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
 
+        validarDorsalDuplicado(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), -1L);  // 🔹 -1 significa "no excluir ningún jugador"        
         Jugador jugador = mapper.toEntity(jugadorDTO);
-        jugadorRepository.save(jugador);
+        jugador.setEquipo(equipoReal);
+        Jugador guardado = jugadorRepository.save(jugador);
 
-        return mapper.toRSPDTO("Success", "Gooool! El jugador " + jugadorDTO.getNombre() + " se guardó en la base de datos.");
+        JugadorDTO respuesta = mapper.toDTO(guardado);
+        respuesta.setMensaje("Gooool! El jugador " + guardado.getNombre() + " se guardó en la base de datos.");
+        return respuesta;
     }
 
-    public JugadorDTO eliminarJugador(Long id) {
+    public void eliminarJugador(Long id) {
 
         Jugador rspJugador = jugadorRepository.findById(id)
                 .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! No se encontró registros de jugador con Id " + id + "."));
 
         jugadorRepository.delete(rspJugador);
-
-        return new JugadorDTO("Success", "Fin del juego! El jugador " + rspJugador.getNombre() + " ha sido eliminado correctamente de la base de datos.");
     }
 
     public JugadorDTO actualizarJugador(JugadorDTO jugadorDTO) {
@@ -72,10 +82,26 @@ public class JugadorService {
         validarJugadorExiste(jugadorDTO.getId(), jugadorDTO.getIdEquipo());
         validarDorsalDuplicado(jugadorDTO.getDorsal(), jugadorDTO.getIdEquipo(), jugadorDTO.getId());  // 🔹 -1 significa "no excluir ningún jugador"
 
-        Jugador jugador = mapper.toEntity(jugadorDTO);
-        jugadorRepository.save(jugador);
+        // Igual que en Equipo: se carga la entidad administrada existente y solo
+        // se mutan sus campos, en vez de guardar una entidad nueva sin id (lo que
+        // provocaba un INSERT duplicado en cada "actualización" en vez de un UPDATE).
+        Jugador jugadorExistente = jugadorRepository.findById(jugadorDTO.getId())
+                .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! No se encontró registros de jugador con Id " + jugadorDTO.getId() + "."));
 
-        return mapper.toRSPDTO("Success", "Gooool! El jugador " + jugador.getNombre() + " se actualizó en la base de datos.");
+        Equipo equipoReal = equipoRepository.findById(jugadorDTO.getIdEquipo())
+                .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
+
+        jugadorExistente.setNombre(jugadorDTO.getNombre());
+        jugadorExistente.setPosicion(jugadorDTO.getPosicion());
+        jugadorExistente.setEdad(jugadorDTO.getEdad());
+        jugadorExistente.setDorsal(jugadorDTO.getDorsal());
+        jugadorExistente.setEquipo(equipoReal);
+
+        Jugador actualizado = jugadorRepository.save(jugadorExistente);
+
+        JugadorDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Gooool! El jugador " + actualizado.getNombre() + " se actualizó en la base de datos.");
+        return respuesta;
     }
 
     private void validarJugadorExiste(Long idJugador, Long idEquipo) {

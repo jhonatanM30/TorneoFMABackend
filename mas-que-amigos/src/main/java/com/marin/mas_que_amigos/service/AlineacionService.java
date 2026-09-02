@@ -50,11 +50,19 @@ public class AlineacionService {
             validacionService.validarMaximoTitulares(alineacion.getIdPartido(), jugador.getEquipo().getId());
         }
 
-        Alineacion rspAlineacion = mapper.toEntity(alineacion);
+        Alineacion guardada = alineacionRepository.save(mapper.toEntity(alineacion));
 
-        alineacionRepository.save(rspAlineacion);
+        // Las asociaciones partido/jugador están mapeadas insertable=false,
+        // updatable=false: la entidad recién guardada por save() todavía no
+        // las trae cargadas en memoria. Se relee por su id compuesto para
+        // obtener una instancia completamente hidratada y así devolver el
+        // detalle completo en la respuesta, en vez de campos en null.
+        Alineacion rehidratada = alineacionRepository.findById(guardada.getId())
+                .orElseThrow(() -> new BusinessException("No se pudo recuperar la alineación recién guardada."));
 
-        return mapper.toRSPDTO("Success", "Alineación registrada correctamente.");
+        AlineacionDTO respuesta = mapper.toDTO(rehidratada);
+        respuesta.setMensaje("Alineación registrada correctamente.");
+        return respuesta;
     }
 
     public List<AlineacionDTO> obtenerAlineacionPorPartido(Long idPartido) {

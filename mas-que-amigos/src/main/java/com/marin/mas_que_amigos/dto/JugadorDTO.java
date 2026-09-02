@@ -1,6 +1,7 @@
 package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.marin.mas_que_amigos.model.Jugador.Posicion;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
@@ -36,7 +37,13 @@ public class JugadorDTO {
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private Long idEquipo;
 
+    // 🔹 Solo se completa al responder (JugadorMapper.toDTO); el servidor
+    // nunca lo lee al crear/editar un jugador (se usa idEquipo para eso), así
+    // que se marca de solo lectura. Esto es justo lo que provocaba el error
+    // de deserialización al enviar "equipo": "Macalister" como texto: ahora
+    // Jackson simplemente ignora ese campo en el request en vez de fallar.
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private EquipoDTO equipo;
 
     public JugadorDTO(String indicadorRespuesta, String mensaje) {
@@ -44,4 +51,3 @@ public class JugadorDTO {
         this.mensaje = mensaje;
     }
 }
-

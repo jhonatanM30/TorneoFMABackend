@@ -1,6 +1,7 @@
 package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.Size;
@@ -51,5 +52,10 @@ public class EquipoDTO {
         this.mensaje = mensaje;
     }
 
-    private List<JugadorDTO> jugadores;  // Aquí agregamos los jugadores
+    // 🔹 Solo se completa al responder (EquipoMapper.toDTO); el servidor
+    // siempre lo ignora si llega en una petición de creación/edición, así
+    // que se marca de solo lectura para que ni Jackson intente deserializarlo
+    // ni Swagger lo muestre como campo de entrada.
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private List<JugadorDTO> jugadores;
 }

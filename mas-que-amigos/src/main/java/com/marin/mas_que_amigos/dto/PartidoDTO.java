@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import lombok.AllArgsConstructor;
@@ -28,12 +29,17 @@ public class PartidoDTO {
     
     private Long idEquipoLocal;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL) // 🔹 Si equipo es null, no se muestra
+    // 🔹 Solo se completa al responder (PartidoMapper.toDTO); nunca se lee en
+    // el request (se usa idEquipoLocal para eso), así que se marca de solo
+    // lectura.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private EquipoDTO equipoLocal;
 
     private Long idEquipoVisitante;
 
-    @JsonInclude(JsonInclude.Include.NON_NULL) // 🔹 Si equipo es null, no se muestra
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private EquipoDTO equipoVisitante;
 
     private LocalDate fecha;

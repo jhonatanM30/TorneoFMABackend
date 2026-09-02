@@ -48,30 +48,42 @@ public class EquipoService {
             throw new BusinessException("Tarjeta Amarilla! El Equipo " + equipo.getNombre() + " ya existe en la base de datos.");
         }
 
-        Equipo rspEquipo = equipoRepository.save(mapper.toEntity(equipo));
-        return mapper.toRSPDTO(rspEquipo.getId(), "Success", "Gooool! El equipo " + equipo.getNombre() + " se guardó en la base de datos.");
+        Equipo guardado = equipoRepository.save(mapper.toEntity(equipo));
 
+        EquipoDTO respuesta = mapper.toDTO(guardado);
+        respuesta.setMensaje("Gooool! El equipo " + guardado.getNombre() + " se guardó en la base de datos.");
+        return respuesta;
     }
 
-    public EquipoDTO eliminarEquipo(Long id) {
+    public void eliminarEquipo(Long id) {
 
         Equipo rspEquipo = equipoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Fuera de juego! El equipo que deseas eliminar no existe en la base de datos"));
 
         equipoRepository.delete(rspEquipo);
-
-        return mapper.toRSPDTO(id, "Success", "Fin del juego! El equipo " + rspEquipo.getNombre() + " ha sido eliminado correctamente.");
     }
 
     public EquipoDTO actualizarEquipo(EquipoDTO equipo) {
 
-        if (!equipoRepository.existsById(equipo.getId())) {
-            throw new NotFoundException("El equipo " + equipo.getNombre() + " no existe, no se puede actualizar.");
-        }
+        // Se busca la entidad administrada (managed) por JPA en lugar de construir
+        // una nueva y hacer save() sobre ella: eso evitaría el @Id y forzaría un
+        // merge() sobre una instancia "shell" con la colección jugadores vacía,
+        // lo que dispararía el orphanRemoval=true y borraría todos los jugadores
+        // del equipo en cada edición. Aquí solo se mutan los campos editables.
+        Equipo equipoExistente = equipoRepository.findById(equipo.getId())
+                .orElseThrow(() -> new NotFoundException("El equipo " + equipo.getNombre() + " no existe, no se puede actualizar."));
 
-         equipoRepository.save(mapper.toEntity(equipo));
+        equipoExistente.setNombre(equipo.getNombre());
+        equipoExistente.setDirectorTecnico(equipo.getDirectorTecnico());
+        equipoExistente.setImagenUrl(equipo.getImagenUrl());
+        equipoExistente.setTitulos(equipo.getTitulos());
+        equipoExistente.setTipoClasificacion(equipo.getTipoClasificacion());
 
-        return mapper.toRSPDTO(equipo.getId(), "Success", "Gooool! El equipo " + equipo.getNombre() + " se guardó en la base de datos.");
+        Equipo actualizado = equipoRepository.save(equipoExistente);
+
+        EquipoDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Gooool! El equipo " + actualizado.getNombre() + " se actualizó en la base de datos.");
+        return respuesta;
     }
 
 }

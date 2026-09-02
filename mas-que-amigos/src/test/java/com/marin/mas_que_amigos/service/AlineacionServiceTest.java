@@ -10,6 +10,7 @@ import com.marin.mas_que_amigos.dto.AlineacionDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.mapper.AlineacionMapper;
 import com.marin.mas_que_amigos.model.Alineacion;
+import com.marin.mas_que_amigos.model.AlineacionId;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.AlineacionRepository;
@@ -59,14 +60,25 @@ class AlineacionServiceTest {
         jugador.setId(20L);
         jugador.setEquipo(equipo);
 
+        Alineacion entidadASalvar = new Alineacion();
+        Alineacion entidadGuardada = new Alineacion();
+        entidadGuardada.setId(new AlineacionId(10L, 20L));
+        Alineacion entidadRehidratada = new Alineacion();
+        entidadRehidratada.setId(new AlineacionId(10L, 20L));
+
+        AlineacionDTO dtoMapeado = new AlineacionDTO();
+        dtoMapeado.setIndicadorRespuesta("Success");
+
         when(jugadorRepository.findById(20L)).thenReturn(Optional.of(jugador));
-        when(mapper.toEntity(dto)).thenReturn(new Alineacion());
-        when(mapper.toRSPDTO("Success", "Alineación registrada correctamente."))
-                .thenReturn(new AlineacionDTO("Success", "Alineación registrada correctamente."));
+        when(mapper.toEntity(dto)).thenReturn(entidadASalvar);
+        when(alineacionRepository.save(entidadASalvar)).thenReturn(entidadGuardada);
+        when(alineacionRepository.findById(entidadGuardada.getId())).thenReturn(Optional.of(entidadRehidratada));
+        when(mapper.toDTO(entidadRehidratada)).thenReturn(dtoMapeado);
 
         AlineacionDTO resultado = alineacionService.guardarAlineacion(dto);
 
         assertThat(resultado.getIndicadorRespuesta()).isEqualTo("Success");
+        assertThat(resultado.getMensaje()).isEqualTo("Alineación registrada correctamente.");
         verify(validacionService).validarMaximoTitulares(10L, 99L);
         verify(alineacionRepository).save(any(Alineacion.class));
     }
