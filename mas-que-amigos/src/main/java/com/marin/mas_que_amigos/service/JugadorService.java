@@ -1,5 +1,7 @@
 package com.marin.mas_que_amigos.service;
 
+import com.marin.mas_que_amigos.dto.JugadorBatchItemResultDTO;
+import com.marin.mas_que_amigos.dto.JugadorBatchResponseDTO;
 import com.marin.mas_que_amigos.dto.JugadorDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
@@ -8,25 +10,36 @@ import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
-import org.springframework.stereotype.Service;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
+import javax.validation.ConstraintViolation;
+import javax.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 @Service
 public class JugadorService {
 
+    // Tope defensivo del lote: evita peticiones desproporcionadas (payloads
+    // enormes) sin ser tan bajo que estorbe el caso real de uso (cargar la
+    // plantilla completa de un equipo, ~20-30 jugadores).
+    private static final int TAMANO_MAXIMO_LOTE = 50;
+
     private final JugadorRepository jugadorRepository;
     private final EquipoRepository equipoRepository;
     private final JugadorMapper mapper;
+    private final Validator validator;
 
     @Autowired
     private ValidationCommonService validacionService;
 
-    public JugadorService(JugadorRepository jugadorRepository, EquipoRepository equipoRepository, JugadorMapper mapper) {
+    public JugadorService(JugadorRepository jugadorRepository, EquipoRepository equipoRepository, JugadorMapper mapper, Validator validator) {
         this.jugadorRepository = jugadorRepository;
         this.equipoRepository = equipoRepository;
         this.mapper = mapper;
+        this.validator = validator;
     }
 
     public List<JugadorDTO> listarJugadores() {
@@ -66,6 +79,73 @@ public class JugadorService {
         JugadorDTO respuesta = mapper.toDTO(guardado);
         respuesta.setMensaje("Gooool! El jugador " + guardado.getNombre() + " se guardó en la base de datos.");
         return respuesta;
+    }
+
+    /**
+     * Crea varios jugadores en una sola petición con procesamiento
+     * "optimista": cada jugador se valida y se guarda de forma
+     * independiente, en el orden recibido. Si uno falla (datos inválidos,
+     * equipo inexistente, dorsal duplicado), no afecta a los demás - el
+     * lote sigue procesando el resto y el resultado detalla éxito/fallo por
+     * cada posición del arreglo original.
+     *
+     * Importante para que el "sigue con los demás" funcione de verdad: este
+     * método deliberadamente NO es @Transactional. jugadorRepository.save()
+     * confirma cada jugador en su propia transacción (comportamiento por
+     * defecto de Spring Data JPA); si este método fuera transaccional, una
+     * excepción en el jugador 5 revertiría también a los jugadores 1-4 ya
+     * guardados, que es justo lo que no queremos.
+     *
+     * La verificación de dorsal duplicado se reconsulta contra la base de
+     * datos en cada jugador del lote (no una sola vez al principio): como
+     * cada guardado exitoso se confirma antes de procesar el siguiente,
+     * esto detecta automáticamente dos jugadores del mismo lote que
+     * compitan por el mismo dorsal en el mismo equipo, sin necesitar lógica
+     * de deduplicación aparte.
+     */
+    public JugadorBatchResponseDTO guardarJugadoresEnLote(List<JugadorDTO> jugadores) {
+
+        if (jugadores == null || jugadores.isEmpty()) {
+            throw new BusinessException("El lote de jugadores no puede estar vacío.");
+        }
+        if (jugadores.size() > TAMANO_MAXIMO_LOTE) {
+            throw new BusinessException("El lote no puede tener más de " + TAMANO_MAXIMO_LOTE
+                    + " jugadores (se recibieron " + jugadores.size() + ").");
+        }
+
+        List<JugadorBatchItemResultDTO> resultados = new ArrayList<>();
+        int exitosos = 0;
+
+        for (int indice = 0; indice < jugadores.size(); indice++) {
+            JugadorDTO dto = jugadores.get(indice);
+            try {
+                // Bean validation manual: al llamar al servicio directamente
+                // (sin pasar por @Valid del controlador) hay que validar cada
+                // jugador aquí, para que uno con datos inválidos no aborte el
+                // resto de la petición.
+                Set<ConstraintViolation<JugadorDTO>> violaciones = validator.validate(dto);
+                if (!violaciones.isEmpty()) {
+                    String mensajeError = violaciones.stream()
+                            .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                            .collect(Collectors.joining("; "));
+                    resultados.add(new JugadorBatchItemResultDTO(indice, false, null, mensajeError));
+                    continue;
+                }
+
+                JugadorDTO creado = guardarJugador(dto);
+                resultados.add(new JugadorBatchItemResultDTO(indice, true, creado, null));
+                exitosos++;
+            } catch (RuntimeException ex) {
+                // Cubre BusinessException (equipo inexistente, dorsal
+                // duplicado) y cualquier otro error en tiempo de ejecución
+                // (por ejemplo una violación de la restricción UNIQUE de BD
+                // ante una carrera con otra petición concurrente): el lote
+                // sigue con el siguiente jugador en vez de abortar.
+                resultados.add(new JugadorBatchItemResultDTO(indice, false, null, ex.getMessage()));
+            }
+        }
+
+        return new JugadorBatchResponseDTO(jugadores.size(), exitosos, jugadores.size() - exitosos, resultados);
     }
 
     public void eliminarJugador(Long id) {

@@ -5,15 +5,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.marin.mas_que_amigos.dto.JugadorBatchResponseDTO;
 import com.marin.mas_que_amigos.dto.JugadorDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
 import com.marin.mas_que_amigos.mapper.JugadorMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
+import com.marin.mas_que_amigos.model.Jugador.Posicion;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import javax.validation.Validation;
+import javax.validation.Validator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,12 +41,27 @@ class JugadorServiceTest {
     @Mock
     private ValidationCommonService validacionService;
 
+    // Validador real (no mock): las pruebas de lote necesitan que las
+    // anotaciones de bean validation (@NotBlank, @NotNull, @Min) de
+    // JugadorDTO se evalúen de verdad, igual que en EstadisticaDTOValidationTest.
+    private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+
     private JugadorService jugadorService;
 
     @BeforeEach
     void setUp() {
-        jugadorService = new JugadorService(jugadorRepository, equipoRepository, mapper);
+        jugadorService = new JugadorService(jugadorRepository, equipoRepository, mapper, validator);
         ReflectionTestUtils.setField(jugadorService, "validacionService", validacionService);
+    }
+
+    private JugadorDTO jugadorValido(String nombre, Long idEquipo, int dorsal) {
+        JugadorDTO dto = new JugadorDTO();
+        dto.setNombre(nombre);
+        dto.setPosicion(Posicion.DELANTERO);
+        dto.setEdad(20);
+        dto.setDorsal(dorsal);
+        dto.setIdEquipo(idEquipo);
+        return dto;
     }
 
     @Test
@@ -140,5 +162,137 @@ class JugadorServiceTest {
 
         assertThatThrownBy(() -> jugadorService.actualizarJugador(dto))
                 .isInstanceOf(JugadorNotFoundException.class);
+    }
+
+    @Test
+    void guardarJugadoresEnLote_todosValidos_creaTodos() {
+        JugadorDTO dto1 = jugadorValido("Jhon", 1L, 7);
+        JugadorDTO dto2 = jugadorValido("Alex", 1L, 8);
+
+        Equipo equipoReal = new Equipo();
+        equipoReal.setId(1L);
+
+        Jugador entidad1 = new Jugador();
+        Jugador entidad2 = new Jugador();
+        Jugador guardado1 = new Jugador();
+        guardado1.setId(10L);
+        Jugador guardado2 = new Jugador();
+        guardado2.setId(11L);
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(equipoReal));
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, 1L, -1L)).thenReturn(false);
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(8, 1L, -1L)).thenReturn(false);
+        when(mapper.toEntity(dto1)).thenReturn(entidad1);
+        when(mapper.toEntity(dto2)).thenReturn(entidad2);
+        when(jugadorRepository.save(entidad1)).thenReturn(guardado1);
+        when(jugadorRepository.save(entidad2)).thenReturn(guardado2);
+        when(mapper.toDTO(guardado1)).thenReturn(new JugadorDTO());
+        when(mapper.toDTO(guardado2)).thenReturn(new JugadorDTO());
+
+        JugadorBatchResponseDTO resultado = jugadorService.guardarJugadoresEnLote(Arrays.asList(dto1, dto2));
+
+        assertThat(resultado.getTotal()).isEqualTo(2);
+        assertThat(resultado.getExitosos()).isEqualTo(2);
+        assertThat(resultado.getFallidos()).isZero();
+        assertThat(resultado.getResultados()).hasSize(2);
+        assertThat(resultado.getResultados().get(0).isExito()).isTrue();
+        assertThat(resultado.getResultados().get(0).getIndice()).isZero();
+        assertThat(resultado.getResultados().get(1).isExito()).isTrue();
+        assertThat(resultado.getResultados().get(1).getIndice()).isEqualTo(1);
+    }
+
+    @Test
+    void guardarJugadoresEnLote_unoInvalido_creaLosDemasYReportaElFallo() {
+        // Simula el caso "19 de 20": de 3 jugadores, el del medio trae datos
+        // inválidos (dorsal 0, viola @Min(1)) y los otros dos sí deben
+        // crearse igual.
+        JugadorDTO valido1 = jugadorValido("Jhon", 1L, 7);
+        JugadorDTO invalido = jugadorValido("SinDorsal", 1L, 0);
+        JugadorDTO valido2 = jugadorValido("Alex", 1L, 8);
+
+        Equipo equipoReal = new Equipo();
+        equipoReal.setId(1L);
+
+        Jugador entidad1 = new Jugador();
+        Jugador entidad3 = new Jugador();
+        Jugador guardado1 = new Jugador();
+        guardado1.setId(10L);
+        Jugador guardado3 = new Jugador();
+        guardado3.setId(12L);
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(equipoReal));
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, 1L, -1L)).thenReturn(false);
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(8, 1L, -1L)).thenReturn(false);
+        when(mapper.toEntity(valido1)).thenReturn(entidad1);
+        when(mapper.toEntity(valido2)).thenReturn(entidad3);
+        when(jugadorRepository.save(entidad1)).thenReturn(guardado1);
+        when(jugadorRepository.save(entidad3)).thenReturn(guardado3);
+        when(mapper.toDTO(guardado1)).thenReturn(new JugadorDTO());
+        when(mapper.toDTO(guardado3)).thenReturn(new JugadorDTO());
+
+        JugadorBatchResponseDTO resultado = jugadorService.guardarJugadoresEnLote(Arrays.asList(valido1, invalido, valido2));
+
+        assertThat(resultado.getTotal()).isEqualTo(3);
+        assertThat(resultado.getExitosos()).isEqualTo(2);
+        assertThat(resultado.getFallidos()).isEqualTo(1);
+
+        assertThat(resultado.getResultados().get(0).isExito()).isTrue();
+        assertThat(resultado.getResultados().get(1).isExito()).isFalse();
+        assertThat(resultado.getResultados().get(1).getError()).isNotBlank();
+        assertThat(resultado.getResultados().get(1).getJugador()).isNull();
+        assertThat(resultado.getResultados().get(2).isExito()).isTrue();
+
+        // El jugador inválido nunca debió intentar mapearse ni guardarse:
+        // la validación de datos lo detiene antes de tocar el repositorio.
+        verify(mapper, org.mockito.Mockito.never()).toEntity(invalido);
+    }
+
+    @Test
+    void guardarJugadoresEnLote_dorsalDuplicadoDentroDelLote_elSegundoFalla() {
+        // Dos jugadores del mismo lote compiten por el mismo dorsal en el
+        // mismo equipo. El primero se guarda y queda persistido; el segundo
+        // debe fallar porque la validación se reconsulta contra la base de
+        // datos (que ya "tiene" al primero) en vez de una sola vez al inicio.
+        JugadorDTO dto1 = jugadorValido("Jhon", 1L, 9);
+        JugadorDTO dto2 = jugadorValido("Otro", 1L, 9);
+
+        Equipo equipoReal = new Equipo();
+        equipoReal.setId(1L);
+        Jugador entidad1 = new Jugador();
+        Jugador guardado1 = new Jugador();
+        guardado1.setId(10L);
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(equipoReal));
+        // Primera consulta (jugador 1): dorsal libre. Segunda consulta
+        // (jugador 2, mismo dorsal/equipo): ya ocupado.
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(9, 1L, -1L)).thenReturn(false, true);
+        when(mapper.toEntity(dto1)).thenReturn(entidad1);
+        when(jugadorRepository.save(entidad1)).thenReturn(guardado1);
+        when(mapper.toDTO(guardado1)).thenReturn(new JugadorDTO());
+
+        JugadorBatchResponseDTO resultado = jugadorService.guardarJugadoresEnLote(Arrays.asList(dto1, dto2));
+
+        assertThat(resultado.getExitosos()).isEqualTo(1);
+        assertThat(resultado.getFallidos()).isEqualTo(1);
+        assertThat(resultado.getResultados().get(0).isExito()).isTrue();
+        assertThat(resultado.getResultados().get(1).isExito()).isFalse();
+        assertThat(resultado.getResultados().get(1).getError()).contains("dorsal");
+    }
+
+    @Test
+    void guardarJugadoresEnLote_listaVacia_lanzaBusinessException() {
+        assertThatThrownBy(() -> jugadorService.guardarJugadoresEnLote(new ArrayList<>()))
+                .isInstanceOf(BusinessException.class);
+    }
+
+    @Test
+    void guardarJugadoresEnLote_excedeTamanoMaximo_lanzaBusinessException() {
+        List<JugadorDTO> loteGrande = new ArrayList<>();
+        for (int i = 0; i < 51; i++) {
+            loteGrande.add(jugadorValido("Jugador" + i, 1L, i + 1));
+        }
+
+        assertThatThrownBy(() -> jugadorService.guardarJugadoresEnLote(loteGrande))
+                .isInstanceOf(BusinessException.class);
     }
 }

@@ -1,5 +1,6 @@
 package com.marin.mas_que_amigos.controller;
 
+import com.marin.mas_que_amigos.dto.JugadorBatchResponseDTO;
 import com.marin.mas_que_amigos.dto.JugadorDTO;
 import com.marin.mas_que_amigos.service.JugadorService;
 
@@ -61,6 +62,20 @@ public class JugadorController {
     @PostMapping
     public JugadorDTO crearJugador(@Valid @RequestBody JugadorDTO jugador) {
         return jugadorService.guardarJugador(jugador);
+    }
+
+    @Operation(summary = "Crear jugadores en lote", description = "Registra varios jugadores en una sola petición. "
+            + "Procesamiento optimista: cada jugador se valida y guarda de forma independiente, en el orden enviado. "
+            + "Si uno falla (datos inválidos, equipo inexistente o dorsal duplicado), no afecta a los demás. "
+            + "La respuesta detalla el resultado de cada jugador según su posición en el arreglo enviado (campo \"indice\").")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Lote procesado (puede incluir éxitos y fallos individuales; ver el detalle por ítem)",
+                content = @Content(schema = @Schema(implementation = JugadorBatchResponseDTO.class))),
+        @ApiResponse(responseCode = "400", description = "El lote llegó vacío o excede el máximo permitido (50 jugadores)", content = @Content)
+    })
+    @PostMapping("/batch")
+    public JugadorBatchResponseDTO crearJugadoresEnLote(@RequestBody List<JugadorDTO> jugadores) {
+        return jugadorService.guardarJugadoresEnLote(jugadores);
     }
 
     @Operation(summary = "Editar jugador", description = "Actualiza los datos de un jugador existente.")

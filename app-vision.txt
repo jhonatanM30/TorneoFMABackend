@@ -54,3 +54,14 @@ REGLAS DE TRABAJO
 - Haz commits de git separados y descriptivos por cada fase o sub-tarea significativa; nunca un único commit gigante al final.
 - No elimines ni sobrescribas funcionalidad existente que ya cumple el README sin justificarlo primero.
 - Si encuentras ambigüedades entre lo que dice el README y lo que parece necesitar el negocio, pregúntame antes de decidir por tu cuenta.
+ADENDA — Funcionalidad aprobada fuera del alcance original del README
+- Durante la Fase 3 (ya con MySQL/Flyway validados) se discutió si convenía
+  permitir crear jugadores anidados dentro de la creación de un equipo, o
+  crear varios jugadores en una sola petición. Se descartó el anidamiento
+  (Jugador tiene ciclo de vida propio e independiente en la API); se aprobó
+  agregar creación de jugadores en lote.
+- Se agregó POST /api/jugadores/batch: crea varios jugadores en una sola
+  petición con procesamiento optimista (jugador por jugador) — si uno falla,
+  los demás se guardan igual, y la respuesta detalla el resultado por cada
+  posición del arreglo enviado. Ver README.md ("Creación de jugadores en
+  lote") y GUIA_PRUEBAS.md para el detalle y ejemplos.

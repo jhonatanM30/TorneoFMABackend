@@ -82,6 +82,7 @@ La aplicación queda disponible en:
 - GET /api/jugadores
 - GET /api/jugadores/{nombre}
 - POST /api/jugadores
+- POST /api/jugadores/batch (creación en lote, ver ejemplo más abajo)
 - PUT /api/jugadores
 - DELETE /api/jugadores/{id}
 
@@ -122,6 +123,47 @@ La aplicación queda disponible en:
   "idEquipo": 1
 }
 ```
+
+## Creación de jugadores en lote
+
+`POST /api/jugadores/batch` permite registrar varios jugadores en una sola
+petición (por ejemplo, cargar la plantilla completa de un equipo). El
+procesamiento es **optimista, jugador por jugador**: si uno falla (datos
+inválidos, equipo inexistente o dorsal duplicado), no afecta a los demás —
+el lote sigue procesando el resto y la respuesta detalla el resultado
+individual de cada jugador según su posición en el arreglo enviado. El
+tamaño máximo del lote es 50 jugadores.
+
+Ejemplo de request (el arreglo se envía directamente como body, sin
+envoltorio):
+
+```json
+[
+  { "nombre": "Alex", "posicion": "DELANTERO", "edad": 26, "dorsal": 11, "idEquipo": 1 },
+  { "nombre": "Sin Dorsal", "posicion": "DEFENSA", "edad": 22, "dorsal": 0, "idEquipo": 1 },
+  { "nombre": "Marino", "posicion": "MEDIOCAMPISTA", "edad": 24, "dorsal": 8, "idEquipo": 1 }
+]
+```
+
+Ejemplo de response (200 OK; el segundo jugador falló por dorsal inválido,
+pero el primero y el tercero sí se crearon):
+
+```json
+{
+  "total": 3,
+  "exitosos": 2,
+  "fallidos": 1,
+  "resultados": [
+    { "indice": 0, "exito": true, "jugador": { "id": 1, "nombre": "Alex", "posicion": "DELANTERO", "edad": 26, "dorsal": 11, "idEquipo": 1, "equipo": { "id": 1, "nombre": "Nacional" } } },
+    { "indice": 1, "exito": false, "error": "dorsal: El dorsal debe ser mayor a 0." },
+    { "indice": 2, "exito": true, "jugador": { "id": 2, "nombre": "Marino", "posicion": "MEDIOCAMPISTA", "edad": 24, "dorsal": 8, "idEquipo": 1, "equipo": { "id": 1, "nombre": "Nacional" } } }
+  ]
+}
+```
+
+Solo se responde 400 (sin procesar nada) si el lote llega vacío o supera
+los 50 jugadores; para todo lo demás, la petición responde 200 y el detalle
+por jugador va en `resultados`.
 
 ## Estado del proyecto
 

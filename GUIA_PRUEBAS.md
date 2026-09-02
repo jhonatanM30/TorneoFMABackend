@@ -216,6 +216,47 @@ curl -X POST http://localhost:57075/api/jugadores \
   }'
 ```
 
+#### 2.3.1 Crear varios jugadores en una sola petición (lote)
+
+`POST /api/jugadores/batch` recibe un arreglo de jugadores y los procesa de
+forma **optimista, uno por uno**: si alguno falla, los demás se guardan
+igual (no se revierte el lote completo). Útil para cargar la plantilla
+completa de un equipo de una sola vez. Tamaño máximo: 50 jugadores por
+petición.
+
+```bash
+curl -X POST http://localhost:57075/api/jugadores/batch \
+  -H "Content-Type: application/json" \
+  -d '[
+    { "nombre": "James Rodríguez", "posicion": "MEDIOCAMPISTA", "edad": 33, "dorsal": 10, "idEquipo": 1 },
+    { "nombre": "Sin Dorsal Válido", "posicion": "DEFENSA", "edad": 24, "dorsal": 0, "idEquipo": 1 },
+    { "nombre": "Davinson Sánchez", "posicion": "DEFENSA", "edad": 27, "dorsal": 5, "idEquipo": 1 }
+  ]'
+```
+
+**Respuesta esperada:**
+- Status: 200 OK (el status 200 no significa que TODOS se hayan creado — el
+  detalle real está en `resultados`)
+- Body: un resumen (`total`, `exitosos`, `fallidos`) más el detalle de cada
+  jugador según su posición en el arreglo enviado. En este ejemplo el
+  segundo jugador falla (dorsal 0 es inválido) y los otros dos sí se crean:
+
+```json
+{
+  "total": 3,
+  "exitosos": 2,
+  "fallidos": 1,
+  "resultados": [
+    { "indice": 0, "exito": true, "jugador": { "id": 1, "nombre": "James Rodríguez", "...": "..." } },
+    { "indice": 1, "exito": false, "error": "dorsal: El dorsal debe ser mayor a 0." },
+    { "indice": 2, "exito": true, "jugador": { "id": 2, "nombre": "Davinson Sánchez", "...": "..." } }
+  ]
+}
+```
+
+Solo responde 400 (sin crear nada) si el arreglo llega vacío o si trae más
+de 50 jugadores.
+
 #### 2.4 Listar todos los jugadores
 ```bash
 curl -X GET http://localhost:57075/api/jugadores \
@@ -494,6 +535,8 @@ Marca ✅ cada punto conforme lo pruebas:
 
 ### Jugadores
 - [ ] Crear jugador (Status 200)
+- [ ] Crear jugadores en lote, todos válidos (Status 200, todos exitosos)
+- [ ] Crear jugadores en lote con uno inválido (Status 200, el resto se crea igual)
 - [ ] Listar jugadores (Status 200, array no vacío)
 - [ ] Obtener jugador por nombre (Status 200, array)
 - [ ] Actualizar jugador (Status 200)

@@ -167,6 +167,7 @@ Luego úsalo en jugadores: {"idEquipo": {{equipoId}}, ...}
 │   └── DELETE Eliminar
 ├── Jugadores
 │   ├── POST Crear
+│   ├── POST Crear (lote, /api/jugadores/batch)
 │   ├── GET Listar
 │   ├── GET Por nombre
 │   ├── PUT Actualizar
