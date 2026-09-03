@@ -76,6 +76,18 @@ public class PartidoController {
         return ResponseEntity.ok(partidoService.guardar(partidoDTO));
     }
 
+    @Operation(summary = "Editar partido", description = "Actualiza los equipos, fecha, hora, goles y fase de un partido ya programado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Partido actualizado",
+                content = @Content(schema = @Schema(implementation = PartidoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Datos inválidos, equipos repetidos o fecha ya ocupada por otro partido", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El partido no existe", content = @Content)
+    })
+    @PutMapping
+    public ResponseEntity<PartidoDTO> editarPartido(@Valid @RequestBody PartidoDTO partidoDTO) {
+        return ResponseEntity.ok(partidoService.actualizarPartido(partidoDTO));
+    }
+
     @Operation(summary = "Eliminar partido", description = "Elimina un partido por su id.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Partido eliminado", content = @Content),

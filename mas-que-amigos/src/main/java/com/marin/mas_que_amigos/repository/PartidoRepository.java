@@ -44,4 +44,13 @@ public interface PartidoRepository extends JpaRepository<Partido, Long> {
     @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.fecha = :fecha AND (p.equipoLocal.id = :equipoLocal OR p.equipoVisitante.id = :equipoLocal OR p.equipoLocal.id = :equipoVisitante OR p.equipoVisitante.id = :equipoVisitante)")
     boolean existePartidoEnFechaParaEquipos(@Param("fecha") LocalDate fecha, @Param("equipoLocal") Long equipoLocal, @Param("equipoVisitante") Long equipoVisitante);
 
+    // FRONTEND_VISION.md Fase3: "un partido se deberia permitir Editar".
+    // Misma validacion que existePartidoEnFechaParaEquipos pero excluyendo
+    // el propio partido que se esta editando (si no, editar un partido sin
+    // cambiar nada fallaria por chocar consigo mismo).
+    @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.id <> :idExcluir AND p.fecha = :fecha "
+            + "AND (p.equipoLocal.id = :equipoLocal OR p.equipoVisitante.id = :equipoLocal OR p.equipoLocal.id = :equipoVisitante OR p.equipoVisitante.id = :equipoVisitante)")
+    boolean existePartidoEnFechaParaEquiposExcluyendo(@Param("fecha") LocalDate fecha, @Param("equipoLocal") Long equipoLocal,
+            @Param("equipoVisitante") Long equipoVisitante, @Param("idExcluir") Long idExcluir);
+
 }

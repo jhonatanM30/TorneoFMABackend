@@ -7,9 +7,11 @@ package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
+import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
 import java.util.List;
@@ -28,6 +30,7 @@ public class PartidoService {
 
     private final PartidoRepository partidoRepository;
     private final EquipoRepository equipoRepository;
+    private final AlineacionRepository alineacionRepository;
 
     @Autowired
     private ValidationCommonService validacionService;
@@ -99,6 +102,64 @@ public class PartidoService {
 
         PartidoDTO respuesta = mapper.toDTO(guardado);
         respuesta.setMensaje("Equipos, el partido ya fue programado");
+        return respuesta;
+    }
+
+    // FRONTEND_VISION.md Fase3: "un partido se deberia permitir Editar".
+    // Permite corregir fecha/hora/fase/goles o los equipos de un partido ya
+    // programado (por ejemplo, para registrar el marcador final, ya que
+    // hoy solo se puede fijar goles en la creacion).
+    public PartidoDTO actualizarPartido(PartidoDTO partidoDTO) {
+
+        Partido partidoExistente = partidoRepository.findById(partidoDTO.getId())
+                .orElseThrow(() -> new NotFoundException("Fuera de juego! El partido que deseas editar no existe."));
+
+        validacionService.validarEquipo(partidoDTO.getIdEquipoLocal());
+        validacionService.validarEquipo(partidoDTO.getIdEquipoVisitante());
+
+        if (partidoDTO.getIdEquipoLocal().equals(partidoDTO.getIdEquipoVisitante())) {
+            throw new BusinessException("Los equipos seleccionados son los mismos. Un equipo no puede jugar contra sí mismo.");
+        }
+
+        boolean cambianLosEquipos = !partidoDTO.getIdEquipoLocal().equals(partidoExistente.getEquipoLocal().getId())
+                || !partidoDTO.getIdEquipoVisitante().equals(partidoExistente.getEquipoVisitante().getId());
+
+        // No se permite cambiar los equipos de un partido que ya tiene
+        // alineaciones registradas: los jugadores alineados pertenecen a los
+        // equipos originales, y cambiar los equipos los dejaria "huerfanos"
+        // (alineados en un partido de equipos a los que ya no pertenecen).
+        // Fecha/hora/goles/fase si se pueden seguir editando en ese caso.
+        if (cambianLosEquipos && !alineacionRepository.findByIdPartido(partidoExistente.getId()).isEmpty()) {
+            throw new BusinessException("Este partido ya tiene una alineación registrada: no se pueden cambiar los equipos (elimina la alineación primero si necesitas hacerlo).");
+        }
+
+        if (partidoRepository.existePartidoEnFechaParaEquiposExcluyendo(partidoDTO.getFecha(), partidoDTO.getIdEquipoLocal(),
+                partidoDTO.getIdEquipoVisitante(), partidoExistente.getId())) {
+            throw new BusinessException("Ya existe otro partido programado el dia " + partidoDTO.getFecha() + " para uno de estos equipos");
+        }
+
+        Equipo equipoLocal = equipoRepository.findById(partidoDTO.getIdEquipoLocal())
+                .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
+        Equipo equipoVisitante = equipoRepository.findById(partidoDTO.getIdEquipoVisitante())
+                .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
+
+        // Se reutiliza mapper.toEntity() (en vez de asignar los campos a
+        // mano) para no duplicar la conversion String -> Partido.Fase que
+        // ya hace el mapper (incluida su validacion de fase invalida).
+        Partido datosNuevos = mapper.toEntity(partidoDTO);
+
+        partidoExistente.setEquipoLocal(equipoLocal);
+        partidoExistente.setEquipoVisitante(equipoVisitante);
+        partidoExistente.setFecha(datosNuevos.getFecha());
+        partidoExistente.setHora(datosNuevos.getHora());
+        partidoExistente.setGolesLocal(datosNuevos.getGolesLocal());
+        partidoExistente.setGolesVisitante(datosNuevos.getGolesVisitante());
+        partidoExistente.setFase(datosNuevos.getFase());
+
+        Partido actualizado = partidoRepository.save(partidoExistente);
+
+        PartidoDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Partido actualizado correctamente.");
         return respuesta;
     }
 
