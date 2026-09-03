@@ -7,6 +7,7 @@ import com.marin.mas_que_amigos.mapper.EquipoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import org.springframework.stereotype.Service;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -29,6 +30,21 @@ public class EquipoService {
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());
 
+    }
+
+    // FRONTEND_VISION.md Fase1: busqueda por coincidencia parcial (endpoint
+    // nuevo GET /api/equipos/buscar?nombre=...), separado de
+    // obtenerEquipoPorNombre (match exacto) para no cambiar su contrato.
+    public List<EquipoDTO> buscarEquiposPorNombreParcial(String nombre) {
+
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return equipoRepository.findByNombreContainingIgnoreCase(nombre.trim())
+                .stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     public EquipoDTO obtenerEquipoPorNombre(String nombre) {

@@ -53,6 +53,17 @@ public class EquipoController {
         return ResponseEntity.ok(equipoService.obtenerEquipoPorNombre(nombre));
     }
 
+    @Operation(summary = "Buscar equipos por coincidencia de nombre",
+            description = "Devuelve los equipos cuyo nombre contiene el texto indicado (sin distinguir mayúsculas/minúsculas). "
+                    + "A diferencia de /{nombre}, no requiere una coincidencia exacta.")
+    @ApiResponse(responseCode = "200", description = "Equipos encontrados (puede ser una lista vacía)",
+            content = @Content(schema = @Schema(implementation = EquipoDTO.class)))
+    @GetMapping("/buscar")
+    public List<EquipoDTO> buscarEquipos(
+            @Parameter(description = "Texto a buscar dentro del nombre del equipo") @RequestParam String nombre) {
+        return equipoService.buscarEquiposPorNombreParcial(nombre);
+    }
+
     @Operation(summary = "Crear equipo", description = "Registra un nuevo equipo en la base de datos.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Equipo creado",
