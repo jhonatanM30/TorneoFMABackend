@@ -55,6 +55,16 @@ public class PartidoController {
         return ResponseEntity.ok(partidoService.buscarPartidoPorEquipo(nombre));
     }
 
+    @Operation(summary = "Buscar partidos por coincidencia de nombre de equipo",
+            description = "Devuelve los partidos (local o visitante) cuyo equipo contiene el texto indicado, sin distinguir mayúsculas/minúsculas.")
+    @ApiResponse(responseCode = "200", description = "Partidos encontrados (puede ser una lista vacía)",
+            content = @Content(schema = @Schema(implementation = PartidoDTO.class)))
+    @GetMapping("/buscar")
+    public List<PartidoDTO> buscarPartidos(
+            @Parameter(description = "Texto a buscar dentro del nombre del equipo") @RequestParam String nombre) {
+        return partidoService.buscarPartidosPorEquipoParcial(nombre);
+    }
+
     @Operation(summary = "Crear partido", description = "Programa un partido entre dos equipos existentes en una fecha disponible.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Partido creado",

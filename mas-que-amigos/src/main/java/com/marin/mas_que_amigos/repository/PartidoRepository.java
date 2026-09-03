@@ -27,6 +27,20 @@ public interface PartidoRepository extends JpaRepository<Partido, Long> {
             + "ORDER BY p.fecha ASC, p.hora ASC")
     List<Partido> findPartidosByEquipo(@Param("nombre") String nombre);
 
+    // FRONTEND_VISION.md Fase3 ("todas las funcionalidades de los filtros
+    // deben funcionar correctamente"): findPartidosByEquipo exige nombre
+    // EXACTO (ni siquiera ignora mayusculas/minusculas), igual que el bug ya
+    // corregido en Equipos - el buscador de Partidos por equipo tenia el
+    // mismo problema. Se agrega, sin tocar la anterior, una version por
+    // coincidencia parcial insensible a mayusculas.
+    @Query("SELECT p FROM Partido p "
+            + "JOIN Equipo eLocal ON p.equipoLocal.id = eLocal.id "
+            + "JOIN Equipo eVisitante ON p.equipoVisitante.id = eVisitante.id "
+            + "WHERE LOWER(eLocal.nombre) LIKE LOWER(CONCAT('%', :nombre, '%')) "
+            + "OR LOWER(eVisitante.nombre) LIKE LOWER(CONCAT('%', :nombre, '%')) "
+            + "ORDER BY p.fecha ASC, p.hora ASC")
+    List<Partido> findPartidosByEquipoNombreParcial(@Param("nombre") String nombre);
+
     @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.fecha = :fecha AND (p.equipoLocal.id = :equipoLocal OR p.equipoVisitante.id = :equipoLocal OR p.equipoLocal.id = :equipoVisitante OR p.equipoVisitante.id = :equipoVisitante)")
     boolean existePartidoEnFechaParaEquipos(@Param("fecha") LocalDate fecha, @Param("equipoLocal") Long equipoLocal, @Param("equipoVisitante") Long equipoVisitante);
 

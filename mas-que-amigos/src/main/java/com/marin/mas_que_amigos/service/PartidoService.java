@@ -55,6 +55,20 @@ public class PartidoService {
 
     }
 
+    // FRONTEND_VISION.md Fase3: busqueda de partidos por coincidencia
+    // parcial de nombre de equipo (buscarPartidoPorEquipo exige match
+    // exacto). Ver PartidoRepository.findPartidosByEquipoNombreParcial.
+    public List<PartidoDTO> buscarPartidosPorEquipoParcial(String nombre) {
+        if (nombre == null || nombre.trim().isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+
+        return partidoRepository.findPartidosByEquipoNombreParcial(nombre.trim())
+                .stream()
+                .map(mapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
     public PartidoDTO guardar(PartidoDTO partidoDTO) {
 
         validacionService.validarEquipo(partidoDTO.getIdEquipoLocal());
