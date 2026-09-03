@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import javax.validation.Valid;
@@ -85,6 +86,22 @@ public class EquipoController {
     @PutMapping
     public EquipoDTO editarEquipo(@Valid @RequestBody EquipoDTO equipo) {
         return equipoService.actualizarEquipo(equipo);
+    }
+
+    @Operation(summary = "Subir/actualizar el escudo del equipo",
+            description = "Sube una imagen (jpg, png, webp o gif) desde el dispositivo del usuario, la guarda en disco "
+                    + "y actualiza imagenUrl del equipo con la URL publica resultante.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Imagen guardada y equipo actualizado",
+                content = @Content(schema = @Schema(implementation = EquipoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Archivo faltante o formato no soportado", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El equipo no existe", content = @Content)
+    })
+    @PostMapping(value = "/{id}/imagen", consumes = "multipart/form-data")
+    public EquipoDTO subirImagenEquipo(
+            @Parameter(description = "Id del equipo") @PathVariable @Min(1) Long id,
+            @Parameter(description = "Archivo de imagen (jpg, png, webp, gif)") @RequestParam("imagen") MultipartFile imagen) {
+        return equipoService.actualizarImagenEquipo(id, imagen);
     }
 
     @Operation(summary = "Eliminar equipo", description = "Elimina un equipo (y en cascada a sus jugadores) por su id.")
