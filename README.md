@@ -108,7 +108,7 @@ La aplicación queda disponible en:
   "directorTecnico": "Rueda",
   "imagenUrl": "https://example.com/escudo.png",
   "titulos": 10,
-  "tipoClasificacion": "Primer Division"
+  "tipoClasificacion": "ELIMINATORIA"
 }
 ```
 

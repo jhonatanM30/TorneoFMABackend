@@ -41,7 +41,7 @@ class EquipoServiceTest {
         EquipoDTO dto = new EquipoDTO();
         dto.setNombre("Macalister");
         dto.setDirectorTecnico("Johan");
-        dto.setTipoClasificacion("directo");
+        dto.setTipoClasificacion(Equipo.TipoClasificacion.ELIMINATORIA);
 
         Equipo entidadASalvar = new Equipo();
         Equipo guardado = new Equipo();
@@ -86,7 +86,7 @@ class EquipoServiceTest {
         dto.setDirectorTecnico("Nuevo DT");
         dto.setImagenUrl("url");
         dto.setTitulos(3);
-        dto.setTipoClasificacion("directo");
+        dto.setTipoClasificacion(Equipo.TipoClasificacion.ELIMINATORIA);
 
         Equipo existente = new Equipo();
         existente.setId(5L);

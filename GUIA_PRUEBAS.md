@@ -46,14 +46,14 @@ curl -X POST http://localhost:57075/api/equipos \
     "directorTecnico": "Rafael Dudamel",
     "imagenUrl": "https://example.com/cali.png",
     "titulos": 12,
-    "tipoClasificacion": "Primer Division"
+    "tipoClasificacion": "ELIMINATORIA"
   }'
 ```
 
 **Respuesta esperada:**
 - Status: 200 OK
 - Body: la entidad completa recién guardada (id, nombre, directorTecnico,
-  imagenUrl, titulos, tipoClasificacion, jugadores: [], indicadorRespuesta,
+  imagenUrl, titulos, tipoClasificacion (ELIMINATORIA|REPECHAJE), jugadores: [], indicadorRespuesta,
   mensaje). Ya no se devuelven solo indicadorRespuesta/mensaje: los demás
   campos venían en null, así que ahora se retorna la representación completa
   del recurso (buena práctica REST para creación/edición).
@@ -67,7 +67,7 @@ curl -X POST http://localhost:57075/api/equipos \
     "directorTecnico": "Paulo Autuori",
     "imagenUrl": "https://example.com/nacional.png",
     "titulos": 16,
-    "tipoClasificacion": "Primer Division"
+    "tipoClasificacion": "ELIMINATORIA"
   }'
 ```
 
@@ -97,7 +97,7 @@ curl -X PUT http://localhost:57075/api/equipos \
     "directorTecnico": "Rafael Dudamel",
     "imagenUrl": "https://example.com/cali-updated.png",
     "titulos": 13,
-    "tipoClasificacion": "Primer Division"
+    "tipoClasificacion": "ELIMINATORIA"
   }'
 ```
 
@@ -480,7 +480,7 @@ curl -X POST http://localhost:57075/api/equipos \
     "directorTecnico": "Rafael Dudamel",
     "imagenUrl": "https://example.com/cali.png",
     "titulos": 12,
-    "tipoClasificacion": "Primer Division"
+    "tipoClasificacion": "ELIMINATORIA"
   }'
 ```
 **Esperado:** Status 400 Bad Request

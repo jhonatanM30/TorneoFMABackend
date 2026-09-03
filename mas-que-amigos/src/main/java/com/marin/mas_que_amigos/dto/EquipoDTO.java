@@ -2,8 +2,10 @@ package com.marin.mas_que_amigos.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.marin.mas_que_amigos.model.Equipo.TipoClasificacion;
 import java.util.List;
 import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -32,9 +34,8 @@ public class EquipoDTO {
 
     private Integer titulos;
 
-    @NotBlank(message = "El tipo de clasificación es obligatorio.")
-    @Size(max = 50, message = "El tipo de clasificación no puede exceder 50 caracteres.")
-    private String tipoClasificacion;
+    @NotNull(message = "El tipo de clasificación es obligatorio (ELIMINATORIA o REPECHAJE).")
+    private TipoClasificacion tipoClasificacion;
 
     private String indicadorRespuesta;
     private String mensaje;
