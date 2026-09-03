@@ -577,11 +577,39 @@ Marca ✅ cada punto conforme lo pruebas:
    `indicadorRespuesta`/`mensaje` se mantienen por compatibilidad con el
    frontend actual. Los DELETE devuelven `204 No Content` sin body.
 
-4. **Base de datos H2:** Los datos se guardan en memoria durante la ejecución. Si reinician la aplicación, se pierden.
+4. **Base de datos:** desde la Fase 3, la aplicación corre contra **MySQL**
+   (Flyway gestiona el esquema) — los datos ya persisten entre reinicios.
+   H2 en memoria quedó exclusivamente para `mvn test`; ya no se usa al
+   levantar la app con `spring-boot:run` ni con Docker Compose (ver
+   `DEPLOYMENT.md`).
 
-5. **Consola H2:** Puedes ver la BD directamente en http://localhost:57075/h2-console (usuario: sa, sin contraseña)
+5. **Ver los datos:** con MySQL no hay consola web integrada como con H2;
+   usa tu cliente de MySQL preferido (MySQL Workbench, DBeaver, la CLI
+   `mysql`, etc.) apuntando a la base configurada por las variables
+   `SPRING_DATASOURCE_*` (ver `DEPLOYMENT.md`).
 
 ---
+
+## 🖥️ Pruebas end-to-end desde el frontend
+
+Además de probar la API directamente (arriba), la Fase 5 agregó un frontend
+completo (repositorio hermano `MasQueAmigos-Torneo`) que cubre Equipos,
+Jugadores (incluida la carga en lote), Partidos y Estadísticas. Para un
+flujo de negocio real de punta a punta:
+
+1. Levanta este backend contra MySQL (`./mvnw spring-boot:run` con las 4
+   variables `SPRING_DATASOURCE_*` exportadas, o `docker compose up`).
+2. Sirve el frontend con Live Server (VS Code) u otro servidor estático en
+   `http://127.0.0.1:5500` (ya permitido en `CorsConfig.java`).
+3. Desde la interfaz: crea un equipo → agrégale jugadores (uno por uno o en
+   lote desde "Cargar varios jugadores") → programa un partido entre dos
+   equipos → en Alineaciones, alinea a algunos jugadores de ambos equipos en
+   ese partido → registra una estadística de uno de esos jugadores alineados
+   (el select de Estadísticas solo ofrece jugadores ya alineados en el
+   partido elegido) → confirma que Inicio refleja los nuevos contadores.
+
+Ver el `README.md` del frontend para el detalle de arquitectura y las
+decisiones de alcance (por ejemplo, por qué no hay pantalla de Alineaciones).
 
 ## 🔗 URLs de referencia rápida
 

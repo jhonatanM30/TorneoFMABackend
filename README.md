@@ -169,6 +169,23 @@ por jugador va en `resultados`.
 
 La aplicación está lista como API REST funcional para gestionar una liga deportiva con flujo básico de CRUD, validación de entrada y manejo de errores. Puede integrarse con un frontend para una experiencia completa de gestión deportiva.
 
+## Frontend
+
+El frontend web (Fase 5) vive en un repositorio aparte, `MasQueAmigos-Torneo`
+(carpeta hermana de este backend), y ya consume Equipos, Jugadores
+(incluida la creación en lote), Partidos y Estadísticas de extremo a
+extremo. Es HTML/CSS/JS sin framework ni build — ver el `README.md` de ese
+repo para el detalle de arquitectura, y `DEPLOYMENT.md` (en este backend)
+para cómo levantar la API. En resumen, para probar todo junto:
+
+1. Levanta este backend (`./mvnw spring-boot:run` o `docker compose up`, ver `DEPLOYMENT.md`).
+2. Sirve la carpeta del frontend con Live Server (VS Code) u otro servidor
+   estático — el backend ya tiene habilitado CORS para
+   `http://127.0.0.1:5500` / `http://localhost:5500` / `http://localhost:5173`
+   (ver `CorsConfig.java`).
+3. Ajusta `js/config.js` del frontend si el backend no corre en
+   `http://localhost:57075`.
+
 ## Mejoras aplicadas
 
 - Corrección de la dependencia de validación incompatible con Spring Boot 2.7

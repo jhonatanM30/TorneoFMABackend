@@ -65,3 +65,27 @@ ADENDA — Funcionalidad aprobada fuera del alcance original del README
   los demás se guardan igual, y la respuesta detalla el resultado por cada
   posición del arreglo enviado. Ver README.md ("Creación de jugadores en
   lote") y GUIA_PRUEBAS.md para el detalle y ejemplos.
+- Fase 5 (Frontend) completada: se retomó el frontend existente
+  (repositorio hermano MasQueAmigos-Torneo, HTML/CSS/JS sin framework) y se
+  completaron las páginas de Inicio (contadores), Partidos (estaban sus
+  vistas y estilos pero faltaban los scripts que las conectaban a la API) y
+  Estadísticas (no existía nada salvo el enlace en el menú). Se agregó
+  también el README.md del frontend (tecnología, estado, navegación, cómo
+  ejecutarlo) que el propio FRONTEND_API_PROMPT.md pedía documentar.
+- Decisión de alcance (Fase 5) revisada a pedido del usuario: se agregó la
+  pantalla de Alineaciones (/api/alineaciones) que originalmente se había
+  dejado fuera por no estar en FRONTEND_API_PROMPT.md. Con eso disponible,
+  el formulario de Estadísticas se actualizó para validar "jugador alineado
+  en el partido" contra el endpoint real (GET /api/alineaciones/partido/{id})
+  en vez de la aproximación anterior por equipo. Ver la sección
+  "Decisiones de alcance" del README del frontend.
+- Segunda pasada de Fase 5 (auditoría completa contra
+  FRONTEND_API_PROMPT.md, a pedido del usuario): se corrigieron los puntos
+  del prompt que no se habían cubierto (filtro de posición como múltiple
+  select, indicador de equipo por color, indicador de ganador y filtro de
+  fecha en Partidos, fecha mínima hoy al programar partido, mostrar el
+  mensaje real del backend, estructura para autenticación futura, botón
+  Cancelar en los modales, sección "Estilo" en el README) y se agregaron,
+  también a pedido del usuario, tres de los bonus opcionales del prompt:
+  notificaciones toast, modo oscuro y gráficos simples en Inicio. Detalle
+  completo en la sección "Segunda pasada" del README del frontend.
