@@ -4,13 +4,14 @@ Backend de una aplicación deportiva para gestionar equipos, jugadores, partidos
 
 > **Auditoría de hallazgos (Fases 1 a 7):** este backend y su frontend
 > (`MasQueAmigos-Torneo`, repo hermano) pasaron por una auditoría completa
-> contra `FRONTEND_VISION.md` (32 hallazgos en 7 fases). El detalle
-> hallazgo por hallazgo — qué se resolvió, qué quedó pendiente/bloqueado
-> y por qué — está en `DIAGNOSTICO_HALLAZGOS.md`, en el repo del
-> frontend. Los cambios de backend que salieron de esa auditoría
-> (subida de escudo, búsqueda parcial, edición de partidos, registros
-> informativos y la clave de Director Técnico) están documentados en las
-> secciones de abajo.
+> contra `FRONTEND_VISION.md` (32 hallazgos en 7 fases), que terminó con
+> los 32 hallazgos en estado Completado. El detalle hallazgo por
+> hallazgo — qué se resolvió y por qué — está en
+> `DIAGNOSTICO_HALLAZGOS.md`, en el repo del frontend. Los cambios de
+> backend que salieron de esa auditoría (subida de escudo y de foto de
+> jugador, búsqueda parcial, edición de partidos, registros informativos,
+> la clave de Director Técnico, y el estado de partido con cambios de
+> jugador) están documentados en las secciones de abajo.
 
 ## ¿Qué puede hacer este proyecto?
 
@@ -108,6 +109,7 @@ La aplicación queda disponible en:
 - GET /api/jugadores/{nombre}
 - POST /api/jugadores
 - POST /api/jugadores/batch (creación en lote, ver ejemplo más abajo; cada jugador del lote puede ir a un `idEquipo` distinto)
+- POST /api/jugadores/{id}/imagen (multipart/form-data, campo `imagen`; sube la foto del jugador con el mismo mecanismo que el escudo del equipo; Fase2-07)
 - PUT /api/jugadores
 - DELETE /api/jugadores/{id}
 
@@ -118,13 +120,20 @@ La aplicación queda disponible en:
 - GET /api/partidos/buscar?nombre=... (coincidencia parcial por nombre de alguno de los dos equipos; Fase3-04)
 - POST /api/partidos
 - PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada; Fase3-05)
+- PUT /api/partidos/{id}/iniciar (pasa el partido de PROGRAMADO a EN_CURSO; Fase3-09)
+- PUT /api/partidos/{id}/finalizar (pasa el partido de EN_CURSO a FINALIZADO; Fase3-09)
 - DELETE /api/partidos/{id}
+
+### Cambios de jugador (Fase3-09/Fase3-10)
+
+- GET /api/partidos/{idPartido}/cambios (historial de sustituciones del partido, ordenado por minuto)
+- POST /api/partidos/{idPartido}/cambios (registra que un jugador titular sale y un suplente del mismo equipo entra, en un minuto dado; el partido debe estar EN_CURSO; al registrarse, voltea los flags `titular` en `Alineacion` para que el suplente que entró quede reconocido como alineado)
 
 ### Estadísticas
 
 - GET /api/estadisticas
 - GET /api/estadisticas/{id}
-- POST /api/estadisticas
+- POST /api/estadisticas (el campo `minuto` es opcional; permite anotar en qué minuto del partido ocurrió el gol/tarjeta/asistencia; Fase3-09/Fase3-10)
 - DELETE /api/estadisticas/{id}
 
 ### Registros informativos (Fase 6 - Configuración)
@@ -200,7 +209,7 @@ Solo se responde 400 (sin procesar nada) si el lote llega vacío o supera
 los 50 jugadores; para todo lo demás, la petición responde 200 y el detalle
 por jugador va en `resultados`.
 
-## Subida de imágenes (escudo de equipo)
+## Subida de imágenes (escudo de equipo y foto de jugador)
 
 `POST /api/equipos/{id}/imagen` recibe un archivo (`multipart/form-data`,
 campo `imagen`, máximo 5MB) y lo guarda en disco bajo el directorio
@@ -210,6 +219,11 @@ corra el proceso). El archivo queda accesible públicamente en
 esa URL absoluta (usando `app.base-url`) se guarda en `Equipo.imagenUrl`.
 Antes de este hallazgo (Fase1-01) el backend no tenía ninguna capacidad de
 archivos: ni multipart configurado ni servido de estáticos.
+
+`POST /api/jugadores/{id}/imagen` (Fase2-07, bonus) funciona igual pero
+guarda la foto del jugador en `uploads/jugadores/` y la URL resultante en
+`Jugador.imagenUrl`; reutiliza `app.uploads.dir`/`app.base-url` y el mismo
+`StaticResourceConfig` sin necesitar cambios ahí.
 
 ## Autenticación temporal: clave de Director Técnico (Fase 7)
 
@@ -261,8 +275,11 @@ para cómo levantar la API. En resumen, para probar todo junto:
 - Estandarización de rutas bajo /api
 - Manejo más consistente de errores
 - Documentación centralizada para uso y despliegue
-- Auditoría completa de 32 hallazgos de `FRONTEND_VISION.md` (Fases 1-7):
-  subida de imágenes, búsqueda parcial, edición de partidos, registros
-  informativos y la clave temporal de Director Técnico (ver secciones
-  de arriba y `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)
+- Auditoría completa de 32 hallazgos de `FRONTEND_VISION.md` (Fases 1-7),
+  con los 32 en estado Completado: subida de imágenes (escudo y foto de
+  jugador), búsqueda parcial, edición de partidos, registros
+  informativos, la clave temporal de Director Técnico, y el estado de
+  partido (PROGRAMADO/EN_CURSO/FINALIZADO) con cambios de jugador y
+  minuto en las estadísticas (ver secciones de arriba y
+  `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)
 
