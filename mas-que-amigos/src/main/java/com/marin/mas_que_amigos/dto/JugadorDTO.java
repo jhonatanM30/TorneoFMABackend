@@ -6,6 +6,7 @@ import com.marin.mas_que_amigos.model.Jugador.Posicion;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,13 @@ public class JugadorDTO {
 
     @Min(value = 1, message = "El dorsal debe ser mayor a 0.")
     private int dorsal;
+
+    // FRONTEND_VISION.md Fase2 (bonus): foto del jugador, mismo patron que
+    // EquipoDTO.imagenUrl (no de solo lectura: se puede enviar en
+    // crear/editar, y ademas se actualiza via el endpoint dedicado de
+    // subida, igual que en Equipo).
+    @Size(max = 255, message = "La URL de la imagen no puede exceder 255 caracteres.")
+    private String imagenUrl;
 
     private String indicadorRespuesta;
     private String mensaje;

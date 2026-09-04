@@ -10,14 +10,24 @@ import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.validation.ConstraintViolation;
 import javax.validation.Validator;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class JugadorService {
@@ -34,6 +44,16 @@ public class JugadorService {
 
     @Autowired
     private ValidationCommonService validacionService;
+
+    // FRONTEND_VISION.md Fase2 (bonus): mismas propiedades que
+    // EquipoService usa para el escudo de equipo (Fase1-01).
+    @Value("${app.uploads.dir:uploads}")
+    private String uploadsDir;
+
+    @Value("${app.base-url:http://localhost:57075}")
+    private String baseUrl;
+
+    private static final List<String> EXTENSIONES_PERMITIDAS = Arrays.asList("jpg", "jpeg", "png", "webp", "gif");
 
     public JugadorService(JugadorRepository jugadorRepository, EquipoRepository equipoRepository, JugadorMapper mapper, Validator validator) {
         this.jugadorRepository = jugadorRepository;
@@ -194,6 +214,58 @@ public class JugadorService {
         if (jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(dorsal, idEquipo, idJugador)) {
             throw new BusinessException("Cambio! El dorsal " + dorsal + " ya está asignado en el equipo.");
         }
+    }
+
+    // FRONTEND_VISION.md Fase2 (bonus): "un boton opcional para cargar la
+    // foto del jugador y que esta se vea como fondo de la card". Mismo
+    // mecanismo que EquipoService#actualizarImagenEquipo (Fase1-01): se
+    // guarda en disco bajo app.uploads.dir/jugadores y se sirve desde
+    // /uploads/jugadores/** (StaticResourceConfig ya cubre todo /uploads/**,
+    // no hace falta tocarlo).
+    public JugadorDTO actualizarImagenJugador(Long id, MultipartFile archivo) {
+
+        Jugador jugador = jugadorRepository.findById(id)
+                .orElseThrow(() -> new JugadorNotFoundException("Fuera de juego! El jugador indicado no existe, no se puede actualizar su foto."));
+
+        if (archivo == null || archivo.isEmpty()) {
+            throw new BusinessException("Debes seleccionar un archivo de imagen para subir.");
+        }
+
+        String contentType = archivo.getContentType();
+        if (contentType == null || !contentType.startsWith("image/")) {
+            throw new BusinessException("El archivo debe ser una imagen (jpg, png, webp o gif).");
+        }
+
+        String extension = extraerExtension(archivo.getOriginalFilename());
+        if (!EXTENSIONES_PERMITIDAS.contains(extension)) {
+            throw new BusinessException("Formato de imagen no soportado. Usa jpg, png, webp o gif.");
+        }
+
+        try {
+            Path carpetaJugadores = Paths.get(uploadsDir, "jugadores");
+            Files.createDirectories(carpetaJugadores);
+
+            String nombreArchivo = UUID.randomUUID() + "." + extension;
+            Path destino = carpetaJugadores.resolve(nombreArchivo);
+            Files.copy(archivo.getInputStream(), destino, StandardCopyOption.REPLACE_EXISTING);
+
+            jugador.setImagenUrl(baseUrl + "/uploads/jugadores/" + nombreArchivo);
+        } catch (IOException e) {
+            throw new UncheckedIOException("No se pudo guardar la foto del jugador en disco.", e);
+        }
+
+        Jugador actualizado = jugadorRepository.save(jugador);
+
+        JugadorDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Gooool! La foto del jugador " + actualizado.getNombre() + " se actualizó correctamente.");
+        return respuesta;
+    }
+
+    private String extraerExtension(String nombreOriginal) {
+        if (nombreOriginal == null || !nombreOriginal.contains(".")) {
+            return "";
+        }
+        return nombreOriginal.substring(nombreOriginal.lastIndexOf('.') + 1).toLowerCase();
     }
 
 }

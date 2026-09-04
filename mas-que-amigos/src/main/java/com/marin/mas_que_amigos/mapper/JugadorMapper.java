@@ -28,6 +28,7 @@ public class JugadorMapper {
         jugador.setPosicion(dto.getPosicion());
         jugador.setEdad(dto.getEdad());
         jugador.setDorsal(dto.getDorsal());
+        jugador.setImagenUrl(dto.getImagenUrl());
 
         return jugador;
     }
@@ -41,6 +42,7 @@ public class JugadorMapper {
         dto.setPosicion(jugador.getPosicion());
         dto.setDorsal(jugador.getDorsal());
         dto.setEdad(jugador.getEdad());
+        dto.setImagenUrl(jugador.getImagenUrl());
 
         // Solo incluir el ID del equipo en vez de toda la entidad para evitar recursión infinita
         dto.setIdEquipo(jugador.getEquipo().getId());
@@ -59,6 +61,7 @@ public class JugadorMapper {
         dto.setPosicion(jugador.getPosicion());
         dto.setDorsal(jugador.getDorsal());
         dto.setEdad(jugador.getEdad());
+        dto.setImagenUrl(jugador.getImagenUrl());
 
         return dto;
     }

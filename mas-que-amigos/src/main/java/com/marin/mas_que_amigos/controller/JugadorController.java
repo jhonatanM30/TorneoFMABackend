@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import javax.validation.Valid;
@@ -87,6 +88,22 @@ public class JugadorController {
     @PutMapping
     public JugadorDTO editarJugador(@Valid @RequestBody JugadorDTO jugador) {
         return jugadorService.actualizarJugador(jugador);
+    }
+
+    @Operation(summary = "Subir/actualizar la foto del jugador",
+            description = "Sube una imagen (jpg, png, webp o gif) desde el dispositivo del usuario, la guarda en disco "
+                    + "y actualiza imagenUrl del jugador con la URL publica resultante.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Foto guardada y jugador actualizado",
+                content = @Content(schema = @Schema(implementation = JugadorDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Archivo faltante o formato no soportado", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El jugador no existe", content = @Content)
+    })
+    @PostMapping(value = "/{id}/imagen", consumes = "multipart/form-data")
+    public JugadorDTO subirImagenJugador(
+            @Parameter(description = "Id del jugador") @PathVariable @Min(1) Long id,
+            @Parameter(description = "Archivo de imagen (jpg, png, webp, gif)") @RequestParam("imagen") MultipartFile imagen) {
+        return jugadorService.actualizarImagenJugador(id, imagen);
     }
 
     @Operation(summary = "Eliminar jugador", description = "Elimina un jugador por su id.")

@@ -35,6 +35,12 @@ public class Jugador implements Serializable {
     @JoinColumn(name = "id_equipo", nullable = false) // 🔹 Esto asegura que el ID del equipo se guarde en la BD
     private Equipo equipo;  
 
+    // FRONTEND_VISION.md Fase2 (bonus): foto del jugador, mismo mecanismo
+    // que Equipo.imagenUrl (Fase1-01) - se guarda en disco y se sirve desde
+    // /uploads/jugadores/** (ver JugadorService#actualizarImagenJugador).
+    @Column(name = "imagen_url")
+    private String imagenUrl;
+
     // Enumeración de las posibles posiciones de los jugadores
     public enum Posicion {
         PORTERO,
