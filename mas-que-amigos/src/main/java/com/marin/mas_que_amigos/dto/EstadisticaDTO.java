@@ -34,4 +34,10 @@ public class EstadisticaDTO {
 
     @Min(value = 0, message = "Las asistencias no pueden ser negativas.")
     private int asistencias;
+
+    // FRONTEND_VISION.md Fase3-09: minuto del partido, opcional (Integer,
+    // no int) porque no todo registro de estadistica ocurre durante un
+    // partido en curso con minuto conocido.
+    @Min(value = 0, message = "El minuto no puede ser negativo.")
+    private Integer minuto;
 }

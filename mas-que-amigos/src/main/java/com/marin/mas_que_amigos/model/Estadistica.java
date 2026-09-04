@@ -50,4 +50,11 @@ public class Estadistica implements Serializable{
 
     @Column(nullable = false)
     private int asistencias = 0;
+
+    // FRONTEND_VISION.md Fase3-09: minuto del partido en que ocurrio este
+    // suceso, cuando se registra durante un partido en curso. Nullable
+    // porque los registros creados antes de este hallazgo (o cargados
+    // despues del partido, sin minuto conocido) siguen siendo validos.
+    @Column(name = "minuto")
+    private Integer minuto;
 }

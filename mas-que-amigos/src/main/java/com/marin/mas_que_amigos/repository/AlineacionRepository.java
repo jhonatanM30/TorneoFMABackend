@@ -8,6 +8,7 @@ package com.marin.mas_que_amigos.repository;
 import com.marin.mas_que_amigos.model.Alineacion;
 import com.marin.mas_que_amigos.model.AlineacionId;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -28,5 +29,12 @@ public interface AlineacionRepository extends JpaRepository<Alineacion, Alineaci
 
     @Query("SELECT COUNT(a) FROM Alineacion a WHERE a.id.idPartido = :idPartido AND a.jugador.equipo.id = :idEquipo AND a.titular = true")
     long contarTitularesPorEquipo(@Param("idPartido") Long idPartido, @Param("idEquipo") Long idEquipo);
+
+    // FRONTEND_VISION.md Fase3-09: usado por CambioJugadorService para
+    // verificar que quien "sale" esta jugando (titular) y quien "entra"
+    // esta disponible en la banca (suplente) del mismo partido, y para
+    // saber a que equipo pertenecen ambos.
+    @Query("SELECT a FROM Alineacion a WHERE a.id.idPartido = :idPartido AND a.id.idJugador = :idJugador")
+    Optional<Alineacion> findByIdPartidoAndIdJugador(@Param("idPartido") Long idPartido, @Param("idJugador") Long idJugador);
 
 }

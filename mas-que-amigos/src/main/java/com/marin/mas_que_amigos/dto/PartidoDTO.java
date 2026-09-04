@@ -52,6 +52,13 @@ public class PartidoDTO {
 
     private String fase;
 
+    // FRONTEND_VISION.md Fase3-09: solo se completa al responder
+    // (PartidoMapper.toDTO); nunca se lee en create/edit - el estado
+    // cambia unicamente via PUT /api/partidos/{id}/iniciar y /finalizar.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private String estado;
+
     private String indicadorRespuesta;
     private String mensaje;
 

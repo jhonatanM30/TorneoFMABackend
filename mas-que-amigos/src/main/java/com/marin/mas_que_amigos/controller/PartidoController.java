@@ -88,6 +88,32 @@ public class PartidoController {
         return ResponseEntity.ok(partidoService.actualizarPartido(partidoDTO));
     }
 
+    @Operation(summary = "Iniciar partido", description = "Marca un partido programado como en curso (habilita registrar cambios de jugador y minuto en las estadísticas).")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Partido iniciado",
+                content = @Content(schema = @Schema(implementation = PartidoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "El partido no está en estado programado", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El partido no existe", content = @Content)
+    })
+    @PutMapping("/{id}/iniciar")
+    public PartidoDTO iniciarPartido(
+            @Parameter(description = "Id del partido") @PathVariable @Min(1) Long id) {
+        return partidoService.iniciarPartido(id);
+    }
+
+    @Operation(summary = "Finalizar partido", description = "Marca un partido en curso como finalizado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Partido finalizado",
+                content = @Content(schema = @Schema(implementation = PartidoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "El partido no está en curso", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El partido no existe", content = @Content)
+    })
+    @PutMapping("/{id}/finalizar")
+    public PartidoDTO finalizarPartido(
+            @Parameter(description = "Id del partido") @PathVariable @Min(1) Long id) {
+        return partidoService.finalizarPartido(id);
+    }
+
     @Operation(summary = "Eliminar partido", description = "Elimina un partido por su id.")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Partido eliminado", content = @Content),

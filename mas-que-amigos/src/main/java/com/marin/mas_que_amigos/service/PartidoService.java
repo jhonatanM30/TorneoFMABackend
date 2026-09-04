@@ -163,6 +163,45 @@ public class PartidoService {
         return respuesta;
     }
 
+    // FRONTEND_VISION.md Fase3-09: marca el partido como en curso, lo que
+    // habilita registrar cambios de jugador (CambioJugadorService) y anotar
+    // el minuto al registrar una estadistica durante el partido.
+    public PartidoDTO iniciarPartido(Long id) {
+        Partido partido = partidoRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Fuera de juego! El partido que deseas iniciar no existe."));
+
+        if (partido.getEstado() != Partido.Estado.PROGRAMADO) {
+            throw new BusinessException("Solo se puede iniciar un partido que esté programado (estado actual: "
+                    + partido.getEstado() + ").");
+        }
+
+        partido.setEstado(Partido.Estado.EN_CURSO);
+        Partido actualizado = partidoRepository.save(partido);
+
+        PartidoDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("¡Arrancó el partido!");
+        return respuesta;
+    }
+
+    // Cierra el partido; a partir de aquí ya no se pueden registrar más
+    // cambios de jugador para él (ver CambioJugadorService).
+    public PartidoDTO finalizarPartido(Long id) {
+        Partido partido = partidoRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Fuera de juego! El partido que deseas finalizar no existe."));
+
+        if (partido.getEstado() != Partido.Estado.EN_CURSO) {
+            throw new BusinessException("Solo se puede finalizar un partido que esté en curso (estado actual: "
+                    + partido.getEstado() + ").");
+        }
+
+        partido.setEstado(Partido.Estado.FINALIZADO);
+        Partido actualizado = partidoRepository.save(partido);
+
+        PartidoDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Partido finalizado.");
+        return respuesta;
+    }
+
     public void eliminar(Long id) {
         partidoRepository.deleteById(id);
     }

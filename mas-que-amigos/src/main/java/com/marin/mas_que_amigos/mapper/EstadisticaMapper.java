@@ -25,6 +25,7 @@ public class EstadisticaMapper {
         dto.setTarjetasAmarillas(estadistica.getTarjetasAmarillas());
         dto.setTarjetasRojas(estadistica.getTarjetasRojas());
         dto.setAsistencias(estadistica.getAsistencias());
+        dto.setMinuto(estadistica.getMinuto());
 
         // Solo incluir los IDs de jugador y partido
         dto.setIdJugador(estadistica.getJugador().getId());
@@ -39,6 +40,7 @@ public class EstadisticaMapper {
         estadistica.setTarjetasAmarillas(dto.getTarjetasAmarillas());
         estadistica.setTarjetasRojas(dto.getTarjetasRojas());
         estadistica.setAsistencias(dto.getAsistencias());
+        estadistica.setMinuto(dto.getMinuto());
 
         // Evitar consultas extra asignando solo referencias
         Jugador jugador = new Jugador();
