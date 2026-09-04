@@ -9,6 +9,7 @@ import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
 import java.time.LocalDate;
@@ -29,6 +30,8 @@ class PartidoServiceTest {
     @Mock
     private EquipoRepository equipoRepository;
     @Mock
+    private AlineacionRepository alineacionRepository;
+    @Mock
     private PartidoMapper mapper;
     @Mock
     private ValidationCommonService validacionService;
@@ -37,7 +40,7 @@ class PartidoServiceTest {
 
     @BeforeEach
     void setUp() {
-        partidoService = new PartidoService(partidoRepository, equipoRepository, mapper);
+        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, mapper);
         ReflectionTestUtils.setField(partidoService, "validacionService", validacionService);
     }
 
