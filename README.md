@@ -1,19 +1,36 @@
 # MAS-QUE-AMIGOS
 
-Backend de una aplicación deportiva para gestionar equipos, jugadores, partidos, alineaciones y estadísticas de una competición o liga. La API está desarrollada con Spring Boot y expone endpoints REST para crear, consultar, actualizar y eliminar registros de un sistema de fútbol amateur o semiprofesional.
+Backend de una aplicación deportiva para gestionar equipos, jugadores, partidos, alineaciones, estadísticas y registros informativos (tipo blog) de una competición o liga. La API está desarrollada con Spring Boot y expone endpoints REST para crear, consultar, actualizar y eliminar registros de un sistema de fútbol amateur o semiprofesional.
+
+> **Auditoría de hallazgos (Fases 1 a 7):** este backend y su frontend
+> (`MasQueAmigos-Torneo`, repo hermano) pasaron por una auditoría completa
+> contra `FRONTEND_VISION.md` (32 hallazgos en 7 fases). El detalle
+> hallazgo por hallazgo — qué se resolvió, qué quedó pendiente/bloqueado
+> y por qué — está en `DIAGNOSTICO_HALLAZGOS.md`, en el repo del
+> frontend. Los cambios de backend que salieron de esa auditoría
+> (subida de escudo, búsqueda parcial, edición de partidos, registros
+> informativos y la clave de Director Técnico) están documentados en las
+> secciones de abajo.
 
 ## ¿Qué puede hacer este proyecto?
 
 El proyecto es capaz de:
 
-- Registrar y consultar equipos
-- Registrar y consultar jugadores asociados a un equipo
-- Crear partidos entre dos equipos
+- Registrar y consultar equipos (búsqueda parcial por nombre, subida del
+  escudo del equipo como imagen)
+- Registrar y consultar jugadores asociados a un equipo (incluida carga
+  en lote)
+- Crear, editar y consultar partidos entre dos equipos (búsqueda parcial
+  por equipo)
 - Registrar alineaciones de jugadores en partidos
 - Consultar estadísticas por jugador o partido
+- Crear y eliminar registros informativos (tipo blog) para la página de
+  Inicio del frontend
 - Manejar errores con respuestas consistentes en JSON
 - Validar datos de entrada antes de persistirlos
 - Exponer la API para consumo desde frontend web o móvil
+- Exigir una clave de "Director Técnico" en toda operación de escritura
+  (ver sección "Autenticación temporal" más abajo)
 
 ## Arquitectura
 
@@ -26,14 +43,17 @@ El proyecto sigue una arquitectura en capas con Spring Boot:
 - Capa DTOs: transporte de datos hacia y desde la API
 - Capa Mapper: conversión entre entidades y DTOs
 - Capa Exceptions: manejo centralizado de errores
+- Capa Security: interceptor de la clave de Director Técnico (Fase 7)
+- Capa Config: configuración de CORS, archivos estáticos e interceptores
 
 ## Tecnologías utilizadas
 
 - Java 8
 - Spring Boot 2.7.18
-- Spring Web
+- Spring Web (incluye MVC, validación e interceptores)
 - Spring Data JPA
 - Spring Validation
+- Flyway (versionado del esquema, ver `src/main/resources/db/migration`)
 - H2 Database (por defecto para pruebas y desarrollo)
 - MySQL (soporte para entorno real)
 - Lombok
@@ -47,6 +67,9 @@ El proyecto sigue una arquitectura en capas con Spring Boot:
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/model](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/model): entidades
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/dto](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/dto): objetos de transferencia
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/exception](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/exception): manejo centralizado de errores
+- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security): interceptor de la clave de Director Técnico (Fase 7)
+- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config): CORS, archivos estáticos (`/uploads/**`) y registro de interceptores
+- [mas-que-amigos/src/main/resources/db/migration](mas-que-amigos/src/main/resources/db/migration): migraciones Flyway del esquema
 
 ## Requisitos
 
@@ -72,8 +95,10 @@ La aplicación queda disponible en:
 ### Equipos
 
 - GET /api/equipos
-- GET /api/equipos/{nombre}
+- GET /api/equipos/{nombre} (coincidencia exacta)
+- GET /api/equipos/buscar?nombre=... (coincidencia parcial, sin distinguir mayúsculas; Fase1-05)
 - POST /api/equipos
+- POST /api/equipos/{id}/imagen (multipart/form-data, campo `imagen`; sube el escudo del equipo y lo sirve luego en `/uploads/**`; Fase1-01)
 - PUT /api/equipos
 - DELETE /api/equipos/{id}
 
@@ -82,15 +107,17 @@ La aplicación queda disponible en:
 - GET /api/jugadores
 - GET /api/jugadores/{nombre}
 - POST /api/jugadores
-- POST /api/jugadores/batch (creación en lote, ver ejemplo más abajo)
+- POST /api/jugadores/batch (creación en lote, ver ejemplo más abajo; cada jugador del lote puede ir a un `idEquipo` distinto)
 - PUT /api/jugadores
 - DELETE /api/jugadores/{id}
 
 ### Partidos
 
 - GET /api/partidos
-- GET /api/partidos/{nombre}
+- GET /api/partidos/{nombre} (coincidencia exacta)
+- GET /api/partidos/buscar?nombre=... (coincidencia parcial por nombre de alguno de los dos equipos; Fase3-04)
 - POST /api/partidos
+- PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada; Fase3-05)
 - DELETE /api/partidos/{id}
 
 ### Estadísticas
@@ -99,6 +126,14 @@ La aplicación queda disponible en:
 - GET /api/estadisticas/{id}
 - POST /api/estadisticas
 - DELETE /api/estadisticas/{id}
+
+### Registros informativos (Fase 6 - Configuración)
+
+- GET /api/registros-informativos (del más reciente al más antiguo)
+- POST /api/registros-informativos (la fecha de publicación la asigna el servidor)
+- DELETE /api/registros-informativos/{id}
+
+No hay PUT: el hallazgo de Fase 6 solo pide crear y eliminar, no editar.
 
 ## Ejemplo de payload para equipo
 
@@ -165,15 +200,48 @@ Solo se responde 400 (sin procesar nada) si el lote llega vacío o supera
 los 50 jugadores; para todo lo demás, la petición responde 200 y el detalle
 por jugador va en `resultados`.
 
+## Subida de imágenes (escudo de equipo)
+
+`POST /api/equipos/{id}/imagen` recibe un archivo (`multipart/form-data`,
+campo `imagen`, máximo 5MB) y lo guarda en disco bajo el directorio
+configurado en `app.uploads.dir` (por defecto `uploads`, relativo a donde
+corra el proceso). El archivo queda accesible públicamente en
+`/uploads/<nombre-generado>` (ver `config/StaticResourceConfig.java`), y
+esa URL absoluta (usando `app.base-url`) se guarda en `Equipo.imagenUrl`.
+Antes de este hallazgo (Fase1-01) el backend no tenía ninguna capacidad de
+archivos: ni multipart configurado ni servido de estáticos.
+
+## Autenticación temporal: clave de Director Técnico (Fase 7)
+
+Mientras no exista un login real que distinga roles, `DirectorTecnicoWebConfig`
+registra un interceptor (`DirectorTecnicoInterceptor`) sobre todo `/api/**`:
+
+- Los métodos de solo consulta (`GET`, `HEAD`, `OPTIONS`) pasan libres.
+- Cualquier otro método (`POST`, `PUT`, `DELETE`) exige el header
+  `X-Director-Tecnico-Key` con el valor configurado en
+  `app.director-tecnico.clave`. Si falta o no coincide, responde `401`
+  con el mismo formato de error que el resto de la API
+  (`{"indicadorRespuesta": "...", "mensaje": "..."}`).
+- El valor por defecto en `application.properties` (`director2025`) es
+  solo para desarrollo local. En un despliegue real hay que
+  sobreescribirlo con la variable de entorno `APP_DIRECTOR_TECNICO_CLAVE`,
+  igual que las credenciales de MySQL (`SPRING_DATASOURCE_*`).
+
+Es una solución intencionalmente temporal (así lo pide el hallazgo de
+Fase 7, "constante intencional"): el reemplazo natural a futuro es un
+login real con roles, dejando este interceptor como base para agregar
+ahí la verificación de sesión/JWT sin tener que tocar cada controlador.
+
 ## Estado del proyecto
 
 La aplicación está lista como API REST funcional para gestionar una liga deportiva con flujo básico de CRUD, validación de entrada y manejo de errores. Puede integrarse con un frontend para una experiencia completa de gestión deportiva.
 
 ## Frontend
 
-El frontend web (Fase 5) vive en un repositorio aparte, `MasQueAmigos-Torneo`
+El frontend web vive en un repositorio aparte, `MasQueAmigos-Torneo`
 (carpeta hermana de este backend), y ya consume Equipos, Jugadores
-(incluida la creación en lote), Partidos y Estadísticas de extremo a
+(incluida la creación en lote), Partidos, Alineaciones, Estadísticas y,
+desde la Fase 6, Registros informativos (Configuración) de extremo a
 extremo. Es HTML/CSS/JS sin framework ni build — ver el `README.md` de ese
 repo para el detalle de arquitectura, y `DEPLOYMENT.md` (en este backend)
 para cómo levantar la API. En resumen, para probar todo junto:
@@ -193,22 +261,8 @@ para cómo levantar la API. En resumen, para probar todo junto:
 - Estandarización de rutas bajo /api
 - Manejo más consistente de errores
 - Documentación centralizada para uso y despliegue
+- Auditoría completa de 32 hallazgos de `FRONTEND_VISION.md` (Fases 1-7):
+  subida de imágenes, búsqueda parcial, edición de partidos, registros
+  informativos y la clave temporal de Director Técnico (ver secciones
+  de arriba y `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)
 
-            {
-              "nombre": "Marino",
-              "posicion": "DELANTERO",
-              "edad": 26,
-              "dorsal": 11,
-              "idEquipo": 1
-            }
-         Ejemplo de Response (JSON)
-           {
-             "id": null,
-             "nombre": null,
-             "posicion": null,
-             "edad": 0,
-             "dorsal": 0,
-             "indicadorRespuesta": "Success",
-             "mensaje": "Gooool! El jugador Marino se guardÃ³ en la base de datos."
-          }
-     
