@@ -159,3 +159,36 @@ Para agregar un cambio de esquema nuevo: crear un archivo
 `V<N>__descripcion.sql` en `src/main/resources/db/migration/` con el
 siguiente número de versión disponible; se aplica solo la próxima vez que
 arranque la aplicación.
+
+## Persistencia de archivos subidos (uploads)
+
+`POST /api/equipos/{id}/imagen` (Fase1-01) y `POST /api/jugadores/{id}/imagen`
+(Fase2-07) guardan el escudo/foto en disco, bajo `app.uploads.dir`
+(`uploads` por defecto, relativo al `WORKDIR /app` del `Dockerfile`). El
+filesystem de un contenedor es efímero: sin un volumen, esos archivos se
+pierden cada vez que se recrea el contenedor del backend (por ejemplo, con
+`docker compose up --build` al desplegar una versión nueva).
+
+`docker-compose.yml` declara el volumen con nombre `uploads_data`, montado
+en `/app/uploads` dentro del contenedor del `backend`, para que sobreviva a
+esos rebuilds. No requiere ninguna variable de entorno nueva ni cambia el
+comando de despliegue: `docker compose up --build` ya lo usa.
+
+Para inspeccionar o respaldar lo que hay en el volumen:
+
+```bash
+docker volume inspect mas-que-amigos_uploads_data
+docker run --rm -v mas-que-amigos_uploads_data:/data -v "$(pwd)":/backup alpine \
+  tar czf /backup/uploads-backup.tar.gz -C /data .
+```
+
+(el prefijo `mas-que-amigos_` en el nombre del volumen lo agrega Docker
+Compose automáticamente a partir del nombre de la carpeta del proyecto;
+confirmalo con `docker volume ls` si tu carpeta se llama distinto).
+
+**Nota para quien ya tenía la aplicación desplegada antes de este volumen:**
+cualquier escudo o foto subida en un despliegue anterior sin este volumen
+ya se perdió al reconstruir el contenedor la primera vez sin él — no hay
+forma de recuperarla retroactivamente. De acá en adelante, con el volumen
+en su lugar, los archivos subidos sobreviven a cualquier
+`docker compose up --build` futuro.

@@ -8,6 +8,11 @@
 # el servicio "mysql" documentado en DEPLOYMENT.md y cambia DB_HOST a
 # "mysql" en el archivo .env.
 #
+# Ademas del backend, este compose declara un volumen con nombre
+# ("uploads_data") para persistir los archivos subidos (escudos, fotos de
+# jugador) entre reconstrucciones del contenedor; no crea ningun otro
+# recurso de datos (el MySQL sigue siendo el que ya tienes corriendo).
+#
 # Uso:
 #   1. cp .env.example .env   (y ajusta los valores si hacen falta)
 #   2. docker compose up --build
@@ -31,4 +36,14 @@ services:
     # Engine (Compose v2.x+), donde host.docker.internal no viene predefinido.
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Persiste los archivos subidos (escudo de equipo, foto de jugador:
+    # Fase1-01/Fase2-07) fuera del filesystem del contenedor. app.uploads.dir
+    # (application.properties) es "uploads", relativo al WORKDIR /app del
+    # Dockerfile, asi que el volumen se monta ahi. Sin esto, cada
+    # `docker compose up --build` recrea el contenedor y borra lo ya subido.
+    volumes:
+      - uploads_data:/app/uploads
     restart: unless-stopped
+
+volumes:
+  uploads_data:
