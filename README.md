@@ -22,11 +22,17 @@ El proyecto es capaz de:
 - Registrar y consultar jugadores asociados a un equipo (incluida carga
   en lote)
 - Crear, editar y consultar partidos entre dos equipos (búsqueda parcial
-  por equipo)
-- Registrar alineaciones de jugadores en partidos
-- Consultar estadísticas por jugador o partido
-- Crear y eliminar registros informativos (tipo blog) para la página de
-  Inicio del frontend
+  por equipo), exigiendo 7 titulares por equipo para iniciarlos y
+  bloqueando la edición/eliminación de uno ya finalizado
+- Registrar, editar y quitar alineaciones de jugadores en partidos,
+  individualmente o en lote, mientras el partido no haya iniciado
+- Registrar, editar y eliminar estadísticas por jugador y partido (un
+  solo registro por jugador+partido), reflejando siempre el marcador del
+  partido correspondiente
+- Crear, editar y eliminar registros informativos (tipo blog) para la
+  página de Inicio del frontend
+- Administrar una galería de fotos para el carrusel de la página de
+  Inicio (subir, listar y eliminar)
 - Manejar errores con respuestas consistentes en JSON
 - Validar datos de entrada antes de persistirlos
 - Exponer la API para consumo desde frontend web o móvil
@@ -118,11 +124,18 @@ La aplicación queda disponible en:
 - GET /api/partidos
 - GET /api/partidos/{nombre} (coincidencia exacta)
 - GET /api/partidos/buscar?nombre=... (coincidencia parcial por nombre de alguno de los dos equipos; Fase3-04)
-- POST /api/partidos
-- PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada; Fase3-05)
-- PUT /api/partidos/{id}/iniciar (pasa el partido de PROGRAMADO a EN_CURSO; Fase3-09)
+- POST /api/partidos (los goles no se reciben en el payload: `golesLocal`/`golesVisitante` son de solo lectura y se calculan a partir de Estadística; Fase9-01)
+- PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada, Fase3-05; rechazada si el partido ya está FINALIZADO, Fase9-01)
+- PUT /api/partidos/{id}/iniciar (pasa el partido de PROGRAMADO a EN_CURSO; exige al menos 7 titulares por equipo, Fase3-09/Fase9-01)
 - PUT /api/partidos/{id}/finalizar (pasa el partido de EN_CURSO a FINALIZADO; Fase3-09)
-- DELETE /api/partidos/{id}
+- DELETE /api/partidos/{id} (rechazada si el partido ya está FINALIZADO; si se permite, borra en cascada su alineación, estadísticas y cambios de jugador; Fase9-01)
+
+### Alineaciones
+
+- GET /api/alineaciones/partido/{idPartido} (jugadores alineados en un partido, titulares y suplentes)
+- POST /api/alineaciones (alinea a un jugador; valida que no esté repetido en el partido y que el equipo no supere 11 titulares)
+- PUT /api/alineaciones/{idPartido}/{idJugador} (cambia a un jugador de titular a suplente o viceversa; solo mientras el partido está PROGRAMADO; revalida el cupo de 11 titulares únicamente si la transición es hacia titular; Fase9-01)
+- DELETE /api/alineaciones/{idPartido}/{idJugador} (quita a un jugador de la alineación; solo mientras el partido está PROGRAMADO; Fase9-01)
 
 ### Cambios de jugador (Fase3-09/Fase3-10)
 
@@ -133,16 +146,23 @@ La aplicación queda disponible en:
 
 - GET /api/estadisticas
 - GET /api/estadisticas/{id}
-- POST /api/estadisticas (el campo `minuto` es opcional; permite anotar en qué minuto del partido ocurrió el gol/tarjeta/asistencia; Fase3-09/Fase3-10)
-- DELETE /api/estadisticas/{id}
+- GET /api/estadisticas/buscar?idJugador=&idPartido= (devuelve el registro existente de ese jugador en ese partido, o 204 si no hay uno; para que el cliente ofrezca editar en vez de duplicar; Fase9-01)
+- POST /api/estadisticas (el campo `minuto` es opcional; permite anotar en qué minuto del partido ocurrió el gol/tarjeta/asistencia, Fase3-09/Fase3-10; rechazada si el partido está PROGRAMADO o si ya existe un registro para ese jugador+partido, Fase9-01; recalcula los goles del partido al guardar)
+- PUT /api/estadisticas/{id} (edita un registro existente; valida que `idJugador`/`idPartido` del body coincidan con el registro; recalcula los goles del partido al guardar; Fase9-01)
+- DELETE /api/estadisticas/{id} (recalcula los goles del partido tras eliminar; Fase9-01)
 
 ### Registros informativos (Fase 6 - Configuración)
 
 - GET /api/registros-informativos (del más reciente al más antiguo)
 - POST /api/registros-informativos (la fecha de publicación la asigna el servidor)
+- PUT /api/registros-informativos/{id} (edita título y contenido; la fecha de publicación original no se toca; Fase9-01)
 - DELETE /api/registros-informativos/{id}
 
-No hay PUT: el hallazgo de Fase 6 solo pide crear y eliminar, no editar.
+### Galería de Inicio (Fase 9)
+
+- GET /api/galeria (fotos del carrusel de la página de Inicio, sin orden garantizado más allá de `fechaSubida` descendente)
+- POST /api/galeria (multipart/form-data, campo `imagen`; sube una foto nueva a la galería con el mismo mecanismo que el escudo de Equipo, sirviéndola luego en `/uploads/**`; a diferencia de la imagen de un equipo, cada subida crea un registro nuevo en vez de reemplazar uno existente, porque la galería es una lista)
+- DELETE /api/galeria/{id} (borra el registro y, de forma best-effort, el archivo físico correspondiente)
 
 ## Ejemplo de payload para equipo
 
@@ -282,4 +302,11 @@ para cómo levantar la API. En resumen, para probar todo junto:
   partido (PROGRAMADO/EN_CURSO/FINALIZADO) con cambios de jugador y
   minuto en las estadísticas (ver secciones de arriba y
   `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)
+- Fase 9: reglas de negocio sobre Partidos (mínimo de titulares para
+  iniciar, bloqueo de edición/eliminación al finalizar, goles derivados
+  de Estadística, borrado en cascada), edición/eliminación de
+  Alineaciones y Estadísticas (con recálculo automático del marcador),
+  edición de Registros informativos, y una galería de fotos administrable
+  para el carrusel de Inicio (ver secciones de arriba y la sección
+  "Fase 9" de `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)
 
