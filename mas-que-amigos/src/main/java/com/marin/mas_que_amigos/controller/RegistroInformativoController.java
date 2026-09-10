@@ -21,12 +21,13 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Fase 6 - Configuracion: CRUD (crear/listar/eliminar) de registros
+ * Fase 6 - Configuracion: CRUD (crear/listar/editar/eliminar) de registros
  * informativos (tipo blog) mostrados en la pagina de Inicio.
  *
  * @author JhonatanAlexanderCue
@@ -57,6 +58,22 @@ public class RegistroInformativoController {
     @PostMapping
     public ResponseEntity<RegistroInformativoDTO> guardar(@Valid @RequestBody RegistroInformativoDTO registroDTO) {
         return ResponseEntity.ok(registroInformativoService.guardar(registroDTO));
+    }
+
+    // Hallazgo post-despliegue (fase9): "deberia permitir editar". Se edita
+    // solo titulo y contenido; la fecha de publicacion original se conserva.
+    @Operation(summary = "Editar registro informativo", description = "Edita el titulo y contenido de un registro informativo existente. La fecha de publicacion original no cambia.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Registro informativo actualizado",
+                content = @Content(schema = @Schema(implementation = RegistroInformativoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Datos invalidos", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El registro informativo no existe", content = @Content)
+    })
+    @PutMapping("/{id}")
+    public ResponseEntity<RegistroInformativoDTO> actualizar(
+            @Parameter(description = "Id del registro informativo a editar") @PathVariable @Min(1) Long id,
+            @Valid @RequestBody RegistroInformativoDTO registroDTO) {
+        return ResponseEntity.ok(registroInformativoService.actualizar(id, registroDTO));
     }
 
     @Operation(summary = "Eliminar registro informativo", description = "Elimina un registro informativo por su id.")

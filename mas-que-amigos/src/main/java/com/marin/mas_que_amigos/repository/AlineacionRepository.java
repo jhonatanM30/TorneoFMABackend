@@ -10,6 +10,7 @@ import com.marin.mas_que_amigos.model.AlineacionId;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -36,5 +37,17 @@ public interface AlineacionRepository extends JpaRepository<Alineacion, Alineaci
     // saber a que equipo pertenecen ambos.
     @Query("SELECT a FROM Alineacion a WHERE a.id.idPartido = :idPartido AND a.id.idJugador = :idJugador")
     Optional<Alineacion> findByIdPartidoAndIdJugador(@Param("idPartido") Long idPartido, @Param("idJugador") Long idJugador);
+
+    // Hallazgo post-despliegue (fase9): "si se elimina un partido se deben
+    // borrar sus estadisticas relacionadas" (extendido tambien a la
+    // alineacion) - no existe ON DELETE CASCADE en la base de datos. Se usa
+    // una @Query explicita en vez de un metodo derivado "deleteByIdIdPartido"
+    // porque Alineacion usa @EmbeddedId (AlineacionId) y los metodos
+    // derivados sobre propiedades anidadas del id compuesto no son
+    // confiables en todas las versiones de Spring Data. Ver
+    // PartidoService#eliminar.
+    @Modifying
+    @Query("DELETE FROM Alineacion a WHERE a.id.idPartido = :idPartido")
+    void eliminarPorPartido(@Param("idPartido") Long idPartido);
 
 }

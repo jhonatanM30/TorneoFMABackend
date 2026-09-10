@@ -28,12 +28,19 @@ public class PartidoMapper {
     // asigna las entidades Equipo reales (ya persistidas) tras llamar a este
     // método, igual que en JugadorMapper, para evitar Equipos "shell" con
     // campos en null en la respuesta.
+    //
+    // Hallazgo post-despliegue (fase9): tampoco asigna golesLocal/
+    // golesVisitante - esos campos del DTO ahora son de solo lectura
+    // (PartidoDTO) y siempre se calculan en el servidor a partir de
+    // Estadistica (ver PartidoService#recalcularGoles). PartidoService es
+    // quien decide su valor real: 0 al crear un partido nuevo (aun sin
+    // estadisticas) y sin tocarlos al editar (para no pisar el valor ya
+    // calculado con lo que el cliente pudiera enviar, aunque ahora Jackson
+    // los ignora al deserializar por ser READ_ONLY).
     public Partido toEntity(PartidoDTO dto) {
         Partido partido = new Partido();
         partido.setFecha(dto.getFecha());
         partido.setHora(dto.getHora());
-        partido.setGolesLocal(dto.getGolesLocal());
-        partido.setGolesVisitante(dto.getGolesVisitante());
         partido.setFase(resolverFase(dto.getFase()));
         return partido;
     }

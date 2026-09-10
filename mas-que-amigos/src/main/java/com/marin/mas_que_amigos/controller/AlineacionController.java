@@ -22,9 +22,11 @@ import javax.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -61,5 +63,41 @@ public class AlineacionController {
     public ResponseEntity<List<AlineacionDTO>> obtenerPorPartido(
             @Parameter(description = "Id del partido") @PathVariable @Min(1) Long idPartido) {
         return ResponseEntity.ok(alineacionService.obtenerAlineacionPorPartido(idPartido));
+    }
+
+    // Hallazgo post-despliegue (fase9): "se deberia permitir editar la
+    // alineacion un suplente pase a titular y viceversa". Restringido a
+    // partidos que aún no han iniciado (ver AlineacionService).
+    @Operation(summary = "Editar alineación de un jugador", description = "Cambia a un jugador ya alineado de titular a suplente o viceversa. "
+            + "Solo permitido mientras el partido no ha iniciado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Alineación actualizada",
+                content = @Content(schema = @Schema(implementation = AlineacionDTO.class))),
+        @ApiResponse(responseCode = "400", description = "El partido ya inició o se supera el cupo de titulares", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El jugador no está alineado en este partido", content = @Content)
+    })
+    @PutMapping("/{idPartido}/{idJugador}")
+    public ResponseEntity<AlineacionDTO> actualizarAlineacion(
+            @Parameter(description = "Id del partido") @PathVariable @Min(1) Long idPartido,
+            @Parameter(description = "Id del jugador") @PathVariable @Min(1) Long idJugador,
+            @Valid @RequestBody AlineacionDTO alineacionDTO) {
+        return ResponseEntity.ok(alineacionService.actualizarAlineacion(idPartido, idJugador, alineacionDTO));
+    }
+
+    // Hallazgo post-despliegue (fase9): "eliminar un jugador de la
+    // alineación si el partido no ha iniciado".
+    @Operation(summary = "Eliminar jugador de la alineación", description = "Quita a un jugador de la alineación de un partido. "
+            + "Solo permitido mientras el partido no ha iniciado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Jugador eliminado de la alineación", content = @Content),
+        @ApiResponse(responseCode = "400", description = "El partido ya inició", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El jugador no está alineado en este partido", content = @Content)
+    })
+    @DeleteMapping("/{idPartido}/{idJugador}")
+    public ResponseEntity<Void> eliminarAlineacion(
+            @Parameter(description = "Id del partido") @PathVariable @Min(1) Long idPartido,
+            @Parameter(description = "Id del jugador") @PathVariable @Min(1) Long idJugador) {
+        alineacionService.eliminarAlineacion(idPartido, idJugador);
+        return ResponseEntity.noContent().build();
     }
 }

@@ -26,7 +26,7 @@ import lombok.Setter;
 public class PartidoDTO {
 
     private Long id;
-    
+
     private Long idEquipoLocal;
 
     // 🔹 Solo se completa al responder (PartidoMapper.toDTO); nunca se lee en
@@ -46,8 +46,19 @@ public class PartidoDTO {
 
     private LocalTime hora;
 
+    // Hallazgo post-despliegue (fase9): "los goles que se reflejan en
+    // partido deben ser ingresados por el registro de estadisticas y si se
+    // desea editar se debe editar por la estadistica registrada en
+    // estadisticas, asi se tiene relacion con el actor". Antes estos dos
+    // campos se leian y escribian libremente en create/edit de Partido; a
+    // partir de ahora se calculan siempre en el servidor sumando los goles
+    // de Estadistica por equipo (ver PartidoService#recalcularGoles) y se
+    // marcan de solo lectura para que un cliente que aun envie estos campos
+    // en el body simplemente los vea ignorados, en vez de fallar.
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private int golesLocal;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
     private int golesVisitante;
 
     private String fase;
