@@ -4,6 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
+
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
@@ -12,15 +23,8 @@ import com.marin.mas_que_amigos.model.Partido;
 import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
+import com.marin.mas_que_amigos.repository.EstadisticaRepository;
+import com.marin.mas_que_amigos.repository.CambioJugadorRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PartidoServiceTest {
@@ -32,6 +36,10 @@ class PartidoServiceTest {
     @Mock
     private AlineacionRepository alineacionRepository;
     @Mock
+    private EstadisticaRepository estadisticasRepository;
+    @Mock
+    private CambioJugadorRepository cambioJugadorRepository;
+    @Mock
     private PartidoMapper mapper;
     @Mock
     private ValidationCommonService validacionService;
@@ -40,7 +48,7 @@ class PartidoServiceTest {
 
     @BeforeEach
     void setUp() {
-        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, mapper);
+        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, estadisticasRepository, cambioJugadorRepository, mapper);
         ReflectionTestUtils.setField(partidoService, "validacionService", validacionService);
     }
 

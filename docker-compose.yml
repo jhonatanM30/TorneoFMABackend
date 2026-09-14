@@ -25,7 +25,7 @@ services:
     ports:
       - "${SERVER_PORT:-57075}:57075"
     environment:
-      SPRING_DATASOURCE_URL: "jdbc:mysql://${DB_HOST:-host.docker.internal}:${DB_PORT:-3308}/${DB_NAME:-masqueamigos}?useSSL=false&serverTimezone=UTC&createDatabaseIfNotExist=true"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://${DB_HOST:-host.docker.internal}:${DB_PORT:-3308}/${DB_NAME:-masqueamigos}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&createDatabaseIfNotExist=true"
       SPRING_DATASOURCE_USERNAME: "${DB_USER:-masqueamigos}"
       SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:-desarrollo}"
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"

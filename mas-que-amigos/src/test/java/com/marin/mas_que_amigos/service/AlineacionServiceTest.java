@@ -15,6 +15,7 @@ import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
+import com.marin.mas_que_amigos.repository.PartidoRepository;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +33,7 @@ class AlineacionServiceTest {
     private AlineacionRepository alineacionRepository;
     @Mock
     private JugadorRepository jugadorRepository;
+    private PartidoRepository partidoRepository;    
     @Mock
     private AlineacionMapper mapper;
     @Mock
@@ -41,7 +43,7 @@ class AlineacionServiceTest {
 
     @BeforeEach
     void setUp() {
-        alineacionService = new AlineacionService(alineacionRepository, jugadorRepository, mapper);
+        alineacionService = new AlineacionService(alineacionRepository, jugadorRepository,  partidoRepository, mapper);   
         ReflectionTestUtils.setField(alineacionService, "validacionService", validacionService);
     }
 
