@@ -1,0 +1,1511 @@
+openapi: 3.0.0
+info:
+  title: API de Más que Amigos
+  description: |
+    API REST para gestionar una liga deportiva amateur: equipos, jugadores,
+    partidos, alineaciones, estadísticas, cambios de jugador y el contenido
+    informativo de la página de Inicio (registros y galería de fotos).
+
+    ## Funcionalidades
+    - Gestión de equipos y sus jugadores (incluida creación en lote de jugadores)
+    - Programación de partidos entre equipos, con control de estado (PROGRAMADO / EN_CURSO / FINALIZADO)
+    - Alineaciones (titulares/suplentes) por partido, con validación de cupo (máximo 11 titulares)
+    - Estadísticas de jugadores por partido (goles, tarjetas, asistencias, minuto), con recálculo automático del marcador
+    - Cambios de jugador (sustituciones) durante un partido en curso
+    - Registros informativos (tipo blog) y galería de fotos para la página de Inicio
+    - Carga de imágenes (escudo de equipo, foto de jugador, fotos de galería)
+
+    ## Autorización de Director Técnico
+    Todas las operaciones de escritura (POST, PUT, DELETE) sobre `/api/**`
+    requieren el header `X-Director-Tecnico-Key` con la clave configurada en
+    `app.director-tecnico.clave`. Las operaciones de solo consulta (GET, HEAD,
+    OPTIONS) no la requieren. Si la clave falta o es incorrecta, la API
+    responde `401` con un `ErrorResponseDTO`. Ver `POST /api/director-tecnico/validar`
+    para validar la clave sin ejecutar ninguna acción.
+
+  version: 0.0.0.001
+  contact:
+    name: Más que Amigos
+  license:
+    name: ISC
+
+servers:
+  - url: http://localhost:57075
+    description: Servidor de desarrollo
+
+security:
+  - directorTecnicoKey: []
+
+paths:
+  /api/equipos:
+    get:
+      summary: Listar equipos
+      description: Devuelve todos los equipos registrados, incluyendo sus jugadores.
+      tags: [Equipos]
+      security: []
+      responses:
+        "200":
+          description: Listado de equipos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EquipoDTO"
+    post:
+      summary: Crear equipo
+      description: Registra un nuevo equipo en la base de datos.
+      tags: [Equipos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipoDTO"
+      responses:
+        "200":
+          description: Equipo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoDTO"
+        "400":
+          description: Datos inválidos o equipo ya existente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    put:
+      summary: Editar equipo
+      description: Actualiza los datos de un equipo existente.
+      tags: [Equipos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EquipoDTO"
+      responses:
+        "200":
+          description: Equipo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoDTO"
+        "400":
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El equipo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/equipos/{nombre}:
+    get:
+      summary: Obtener equipo por nombre
+      description: Busca un equipo por su nombre exacto (sin distinguir mayúsculas/minúsculas).
+      tags: [Equipos]
+      security: []
+      parameters:
+        - in: path
+          name: nombre
+          required: true
+          schema:
+            type: string
+          description: Nombre del equipo a buscar
+      responses:
+        "200":
+          description: Equipo encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoDTO"
+        "404":
+          description: No existe un equipo con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/equipos/buscar:
+    get:
+      summary: Buscar equipos por coincidencia de nombre
+      description: |
+        Devuelve los equipos cuyo nombre contiene el texto indicado (sin
+        distinguir mayúsculas/minúsculas). A diferencia de `/{nombre}`, no
+        requiere una coincidencia exacta.
+      tags: [Equipos]
+      security: []
+      parameters:
+        - in: query
+          name: nombre
+          required: true
+          schema:
+            type: string
+          description: Texto a buscar dentro del nombre del equipo
+      responses:
+        "200":
+          description: Equipos encontrados (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EquipoDTO"
+
+  /api/equipos/{id}/imagen:
+    post:
+      summary: Subir/actualizar el escudo del equipo
+      description: |
+        Sube una imagen (jpg, png, webp o gif) desde el dispositivo del
+        usuario, la guarda en disco y actualiza `imagenUrl` del equipo con
+        la URL pública resultante.
+      tags: [Equipos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del equipo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen (jpg, png, webp, gif)
+              required: [imagen]
+      responses:
+        "200":
+          description: Imagen guardada y equipo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoDTO"
+        "400":
+          description: Archivo faltante o formato no soportado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El equipo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/equipos/{id}:
+    delete:
+      summary: Eliminar equipo
+      description: Elimina un equipo (y en cascada a sus jugadores) por su id.
+      tags: [Equipos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del equipo a eliminar
+      responses:
+        "204":
+          description: Equipo eliminado
+        "404":
+          description: El equipo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/jugadores:
+    get:
+      summary: Listar jugadores
+      description: Devuelve todos los jugadores registrados.
+      tags: [Jugadores]
+      security: []
+      responses:
+        "200":
+          description: Listado de jugadores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JugadorDTO"
+    post:
+      summary: Crear jugador
+      description: Registra un nuevo jugador asociado a un equipo existente.
+      tags: [Jugadores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JugadorDTO"
+      responses:
+        "200":
+          description: Jugador creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JugadorDTO"
+        "400":
+          description: Datos inválidos, equipo inexistente o dorsal duplicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    put:
+      summary: Editar jugador
+      description: Actualiza los datos de un jugador existente.
+      tags: [Jugadores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JugadorDTO"
+      responses:
+        "200":
+          description: Jugador actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JugadorDTO"
+        "400":
+          description: Datos inválidos, jugador/equipo inexistente o dorsal duplicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/jugadores/{nombre}:
+    get:
+      summary: Buscar jugadores por nombre
+      description: Busca jugadores cuyo nombre contenga el texto indicado (sin distinguir mayúsculas/minúsculas).
+      tags: [Jugadores]
+      security: []
+      parameters:
+        - in: path
+          name: nombre
+          required: true
+          schema:
+            type: string
+          description: Texto a buscar dentro del nombre del jugador
+      responses:
+        "200":
+          description: Jugadores encontrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JugadorDTO"
+        "400":
+          description: No se encontraron jugadores con ese nombre
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/jugadores/batch:
+    post:
+      summary: Crear jugadores en lote
+      description: |
+        Registra varios jugadores en una sola petición. Procesamiento
+        optimista: cada jugador se valida y guarda de forma independiente,
+        en el orden enviado. Si uno falla (datos inválidos, equipo
+        inexistente o dorsal duplicado), no afecta a los demás. La respuesta
+        detalla el resultado de cada jugador según su posición en el
+        arreglo enviado (campo `indice`). Máximo 50 jugadores por lote.
+      tags: [Jugadores]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/JugadorDTO"
+      responses:
+        "200":
+          description: Lote procesado (puede incluir éxitos y fallos individuales; ver el detalle por ítem)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JugadorBatchResponseDTO"
+        "400":
+          description: El lote llegó vacío o excede el máximo permitido (50 jugadores)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/jugadores/{id}/imagen:
+    post:
+      summary: Subir/actualizar la foto del jugador
+      description: |
+        Sube una imagen (jpg, png, webp o gif) desde el dispositivo del
+        usuario, la guarda en disco y actualiza `imagenUrl` del jugador con
+        la URL pública resultante.
+      tags: [Jugadores]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del jugador
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen (jpg, png, webp, gif)
+              required: [imagen]
+      responses:
+        "200":
+          description: Foto guardada y jugador actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JugadorDTO"
+        "400":
+          description: Archivo faltante o formato no soportado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El jugador no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/jugadores/{id}:
+    delete:
+      summary: Eliminar jugador
+      description: Elimina un jugador por su id.
+      tags: [Jugadores]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del jugador a eliminar
+      responses:
+        "204":
+          description: Jugador eliminado
+        "404":
+          description: El jugador no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos:
+    get:
+      summary: Listar partidos
+      description: Devuelve todos los partidos programados.
+      tags: [Partidos]
+      security: []
+      responses:
+        "200":
+          description: Listado de partidos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartidoDTO"
+    post:
+      summary: Crear partido
+      description: Programa un partido entre dos equipos existentes en una fecha disponible.
+      tags: [Partidos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartidoDTO"
+      responses:
+        "200":
+          description: Partido creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: Datos inválidos, equipos inexistentes, equipos repetidos o fecha ya ocupada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    put:
+      summary: Editar partido
+      description: Actualiza los equipos, fecha, hora y fase de un partido ya programado.
+      tags: [Partidos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PartidoDTO"
+      responses:
+        "200":
+          description: Partido actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: Datos inválidos, equipos repetidos o fecha ya ocupada por otro partido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El partido no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos/{nombre}:
+    get:
+      summary: Buscar partidos por equipo
+      description: Devuelve los partidos (local o visitante) de un equipo, ordenados por fecha y hora.
+      tags: [Partidos]
+      security: []
+      parameters:
+        - in: path
+          name: nombre
+          required: true
+          schema:
+            type: string
+          description: Nombre del equipo
+      responses:
+        "200":
+          description: Partidos del equipo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartidoDTO"
+
+  /api/partidos/buscar:
+    get:
+      summary: Buscar partidos por coincidencia de nombre de equipo
+      description: Devuelve los partidos (local o visitante) cuyo equipo contiene el texto indicado, sin distinguir mayúsculas/minúsculas.
+      tags: [Partidos]
+      security: []
+      parameters:
+        - in: query
+          name: nombre
+          required: true
+          schema:
+            type: string
+          description: Texto a buscar dentro del nombre del equipo
+      responses:
+        "200":
+          description: Partidos encontrados (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartidoDTO"
+
+  /api/partidos/{id}/iniciar:
+    put:
+      summary: Iniciar partido
+      description: Marca un partido programado como en curso (habilita registrar cambios de jugador y minuto en las estadísticas).
+      tags: [Partidos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      responses:
+        "200":
+          description: Partido iniciado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: El partido no está en estado programado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El partido no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos/{id}/finalizar:
+    put:
+      summary: Finalizar partido
+      description: Marca un partido en curso como finalizado.
+      tags: [Partidos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      responses:
+        "200":
+          description: Partido finalizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: El partido no está en curso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El partido no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos/{id}:
+    delete:
+      summary: Eliminar partido
+      description: Elimina un partido por su id.
+      tags: [Partidos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido a eliminar
+      responses:
+        "204":
+          description: Partido eliminado
+        "404":
+          description: El partido no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos/{idPartido}/cambios:
+    get:
+      summary: Listar cambios de un partido
+      description: Devuelve los cambios de jugador de un partido, ordenados por minuto.
+      tags: [Cambios de jugador]
+      security: []
+      parameters:
+        - in: path
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      responses:
+        "200":
+          description: Listado de cambios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CambioJugadorDTO"
+    post:
+      summary: Registrar un cambio de jugador
+      description: |
+        Registra que un jugador titular sale y un suplente del mismo equipo
+        entra, en el minuto indicado. El partido debe estar en curso.
+      tags: [Cambios de jugador]
+      parameters:
+        - in: path
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CambioJugadorDTO"
+      responses:
+        "200":
+          description: Cambio registrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CambioJugadorDTO"
+        "400":
+          description: Partido no encontrado, no está en curso, o jugadores inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/alineaciones:
+    post:
+      summary: Registrar alineación
+      description: |
+        Alinea a un jugador en un partido, validando que el partido y el
+        jugador existan, que el jugador no esté repetido en el mismo
+        partido y que un equipo no supere 11 titulares.
+      tags: [Alineaciones]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlineacionDTO"
+      responses:
+        "200":
+          description: Alineación registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlineacionDTO"
+        "400":
+          description: Datos inválidos, partido/jugador inexistente, jugador duplicado o cupo de titulares superado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/alineaciones/partido/{idPartido}:
+    get:
+      summary: Listar alineación de un partido
+      description: Devuelve los jugadores alineados (titulares y suplentes) de un partido.
+      tags: [Alineaciones]
+      security: []
+      parameters:
+        - in: path
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      responses:
+        "200":
+          description: Alineación del partido
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AlineacionDTO"
+
+  /api/alineaciones/{idPartido}/{idJugador}:
+    put:
+      summary: Editar alineación de un jugador
+      description: |
+        Cambia a un jugador ya alineado de titular a suplente o viceversa.
+        Solo permitido mientras el partido no ha iniciado.
+      tags: [Alineaciones]
+      parameters:
+        - in: path
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+        - in: path
+          name: idJugador
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del jugador
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AlineacionDTO"
+      responses:
+        "200":
+          description: Alineación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlineacionDTO"
+        "400":
+          description: El partido ya inició o se supera el cupo de titulares
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El jugador no está alineado en este partido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    delete:
+      summary: Eliminar jugador de la alineación
+      description: Quita a un jugador de la alineación de un partido. Solo permitido mientras el partido no ha iniciado.
+      tags: [Alineaciones]
+      parameters:
+        - in: path
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+        - in: path
+          name: idJugador
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del jugador
+      responses:
+        "204":
+          description: Jugador eliminado de la alineación
+        "400":
+          description: El partido ya inició
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El jugador no está alineado en este partido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/estadisticas:
+    get:
+      summary: Listar estadísticas
+      description: Devuelve todas las estadísticas registradas.
+      tags: [Estadísticas]
+      security: []
+      responses:
+        "200":
+          description: Listado de estadísticas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EstadisticaDTO"
+    post:
+      summary: Registrar estadística
+      description: |
+        Registra el rendimiento de un jugador (goles, tarjetas, asistencias)
+        en un partido que ya haya iniciado. Si ya existe un registro para
+        ese jugador y partido, se rechaza (usa `PUT /{id}` para editarlo).
+      tags: [Estadísticas]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstadisticaDTO"
+      responses:
+        "200":
+          description: Estadística registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstadisticaDTO"
+        "400":
+          description: Datos inválidos, partido no iniciado o registro duplicado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/estadisticas/{id}:
+    get:
+      summary: Obtener estadística por id
+      tags: [Estadísticas]
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id de la estadística
+      responses:
+        "200":
+          description: Estadística encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstadisticaDTO"
+        "404":
+          description: La estadística no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    put:
+      summary: Editar estadística
+      description: |
+        Edita los contadores (goles/tarjetas/asistencias/minuto) de un
+        registro de estadística ya existente. El cambio se refleja
+        automáticamente en los goles del partido.
+      tags: [Estadísticas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id de la estadística a editar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EstadisticaDTO"
+      responses:
+        "200":
+          description: Estadística actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstadisticaDTO"
+        "400":
+          description: Datos inválidos o intento de reasignar el registro a otro jugador/partido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: La estadística no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    delete:
+      summary: Eliminar estadística
+      description: Elimina una estadística por su id. El cambio se refleja automáticamente en los goles del partido.
+      tags: [Estadísticas]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id de la estadística a eliminar
+      responses:
+        "204":
+          description: Estadística eliminada
+
+  /api/estadisticas/buscar:
+    get:
+      summary: Buscar estadística existente de un jugador en un partido
+      description: |
+        Devuelve el registro de estadística de ese jugador en ese partido si
+        ya existe, para editarlo en vez de crear uno duplicado.
+      tags: [Estadísticas]
+      security: []
+      parameters:
+        - in: query
+          name: idJugador
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del jugador
+        - in: query
+          name: idPartido
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del partido
+      responses:
+        "200":
+          description: Ya existe un registro para ese jugador y partido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstadisticaDTO"
+        "204":
+          description: No existe ningún registro todavía para ese jugador y partido
+
+  /api/estadisticas/goleador:
+    get:
+      summary: Obtener el goleador del torneo
+      description: |
+        Devuelve al jugador o jugadores con más goles sumando todos los
+        partidos del torneo, sin importar el equipo. Si dos o más jugadores
+        empatan en el máximo, se devuelven todos los empatados.
+      tags: [Estadísticas]
+      security: []
+      responses:
+        "200":
+          description: Goleador o goleadores del torneo (lista vacía si no hay goles registrados)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GoleadorDTO"
+
+  /api/galeria:
+    get:
+      summary: Listar fotos de la galería
+      description: Devuelve todas las fotos de la galería, de la más reciente a la más antigua.
+      tags: [Galería]
+      security: []
+      responses:
+        "200":
+          description: Listado de fotos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ImagenGaleriaDTO"
+    post:
+      summary: Subir foto a la galería
+      description: Sube una imagen (jpg, png, webp o gif) desde el dispositivo del usuario y la agrega al carrusel de Inicio.
+      tags: [Galería]
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                imagen:
+                  type: string
+                  format: binary
+                  description: Archivo de imagen (jpg, png, webp, gif)
+              required: [imagen]
+      responses:
+        "200":
+          description: Imagen agregada a la galería
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImagenGaleriaDTO"
+        "400":
+          description: Archivo faltante o formato no soportado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/galeria/{id}:
+    delete:
+      summary: Eliminar foto de la galería
+      description: Elimina una foto de la galería por su id.
+      tags: [Galería]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id de la foto a eliminar
+      responses:
+        "204":
+          description: Foto eliminada
+        "404":
+          description: La foto no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/registros-informativos:
+    get:
+      summary: Listar registros informativos
+      description: Devuelve todos los registros informativos, del más reciente al más antiguo.
+      tags: [Registros informativos]
+      security: []
+      responses:
+        "200":
+          description: Listado de registros informativos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RegistroInformativoDTO"
+    post:
+      summary: Crear registro informativo
+      description: Crea una nueva publicación informativa para la página de Inicio. La fecha de publicación la asigna el servidor.
+      tags: [Registros informativos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistroInformativoDTO"
+      responses:
+        "200":
+          description: Registro informativo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistroInformativoDTO"
+        "400":
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/registros-informativos/{id}:
+    put:
+      summary: Editar registro informativo
+      description: Edita el título y contenido de un registro informativo existente. La fecha de publicación original no cambia.
+      tags: [Registros informativos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del registro informativo a editar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegistroInformativoDTO"
+      responses:
+        "200":
+          description: Registro informativo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegistroInformativoDTO"
+        "400":
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El registro informativo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    delete:
+      summary: Eliminar registro informativo
+      description: Elimina un registro informativo por su id.
+      tags: [Registros informativos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Id del registro informativo a eliminar
+      responses:
+        "204":
+          description: Registro informativo eliminado
+        "400":
+          description: El registro informativo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/director-tecnico/validar:
+    post:
+      summary: Validar la clave de Director Técnico
+      description: |
+        No hace nada por sí mismo: si la petición llega hasta acá es porque
+        `DirectorTecnicoInterceptor` ya validó el header
+        `X-Director-Tecnico-Key`. Se usa para confirmar la clave en el
+        momento de ingresarla, antes de dejar pasar al usuario a modo
+        Director Técnico en el frontend.
+      tags: [Director Técnico]
+      responses:
+        "200":
+          description: La clave enviada en X-Director-Tecnico-Key es correcta
+        "401":
+          description: La clave enviada es incorrecta o falta
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+components:
+  securitySchemes:
+    directorTecnicoKey:
+      type: apiKey
+      in: header
+      name: X-Director-Tecnico-Key
+      description: |
+        Requerida en toda operación de escritura (POST/PUT/DELETE) sobre
+        /api/**. No se exige en operaciones de solo consulta (GET/HEAD/OPTIONS).
+
+  schemas:
+    ErrorResponseDTO:
+      type: object
+      properties:
+        indicadorRespuesta:
+          type: string
+          example: "No autorizado"
+        mensaje:
+          type: string
+          example: "Esta acción requiere la clave de Director Técnico."
+
+    EquipoDTO:
+      type: object
+      required: [nombre, directorTecnico, tipoClasificacion]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        nombre:
+          type: string
+          maxLength: 100
+        directorTecnico:
+          type: string
+          maxLength: 100
+        imagenUrl:
+          type: string
+          maxLength: 255
+        titulos:
+          type: integer
+        tipoClasificacion:
+          $ref: "#/components/schemas/TipoClasificacion"
+        jugadores:
+          type: array
+          readOnly: true
+          items:
+            $ref: "#/components/schemas/JugadorDTO"
+
+    TipoClasificacion:
+      type: string
+      enum: [ELIMINATORIA, REPECHAJE]
+
+    JugadorDTO:
+      type: object
+      required: [nombre, posicion, edad, dorsal]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        nombre:
+          type: string
+        posicion:
+          $ref: "#/components/schemas/Posicion"
+        edad:
+          type: integer
+          minimum: 1
+        dorsal:
+          type: integer
+          minimum: 1
+        imagenUrl:
+          type: string
+          maxLength: 255
+        idEquipo:
+          type: integer
+          format: int64
+          description: Id del equipo al que pertenece (usado al crear/editar)
+        equipo:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/EquipoDTO"
+          description: Detalle del equipo, solo presente en la respuesta
+
+    Posicion:
+      type: string
+      enum: [PORTERO, DEFENSA, MEDIOCAMPISTA, DELANTERO]
+
+    JugadorBatchResponseDTO:
+      type: object
+      properties:
+        total:
+          type: integer
+        exitosos:
+          type: integer
+        fallidos:
+          type: integer
+        resultados:
+          type: array
+          items:
+            $ref: "#/components/schemas/JugadorBatchItemResultDTO"
+
+    JugadorBatchItemResultDTO:
+      type: object
+      description: Resultado de un jugador dentro de una creación en lote. "indice" corresponde a su posición en el arreglo enviado.
+      properties:
+        indice:
+          type: integer
+        exito:
+          type: boolean
+        jugador:
+          $ref: "#/components/schemas/JugadorDTO"
+        error:
+          type: string
+          description: Presente solo si exito = false
+
+    PartidoDTO:
+      type: object
+      required: [idEquipoLocal, idEquipoVisitante, fecha, hora]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        idEquipoLocal:
+          type: integer
+          format: int64
+        equipoLocal:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/EquipoDTO"
+        idEquipoVisitante:
+          type: integer
+          format: int64
+        equipoVisitante:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/EquipoDTO"
+        fecha:
+          type: string
+          format: date
+        hora:
+          type: string
+          format: partial-time
+          example: "16:30:00"
+        golesLocal:
+          type: integer
+          readOnly: true
+          description: Calculado en el servidor sumando los goles de Estadística por equipo; no editable directamente.
+        golesVisitante:
+          type: integer
+          readOnly: true
+          description: Calculado en el servidor sumando los goles de Estadística por equipo; no editable directamente.
+        fase:
+          $ref: "#/components/schemas/Fase"
+        estado:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/EstadoPartido"
+          description: Solo cambia vía PUT /api/partidos/{id}/iniciar y /finalizar
+
+    Fase:
+      type: string
+      enum: [FASE_DE_GRUPOS, REPECHAJE, ELIMINACION_DIRECTA, FINAL]
+
+    EstadoPartido:
+      type: string
+      enum: [PROGRAMADO, EN_CURSO, FINALIZADO]
+
+    AlineacionDTO:
+      type: object
+      required: [idPartido, idJugador]
+      properties:
+        idPartido:
+          type: integer
+          format: int64
+        idJugador:
+          type: integer
+          format: int64
+        titular:
+          type: boolean
+        partido:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/PartidoDTO"
+        jugador:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/JugadorDTO"
+
+    EstadisticaDTO:
+      type: object
+      required: [idJugador, idPartido]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        idJugador:
+          type: integer
+          format: int64
+        idPartido:
+          type: integer
+          format: int64
+        goles:
+          type: integer
+          minimum: 0
+        tarjetasAmarillas:
+          type: integer
+          minimum: 0
+        tarjetasRojas:
+          type: integer
+          minimum: 0
+        asistencias:
+          type: integer
+          minimum: 0
+        minuto:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Minuto del partido en que ocurrió; opcional si no se registró durante un partido en curso.
+
+    GoleadorDTO:
+      type: object
+      properties:
+        idJugador:
+          type: integer
+          format: int64
+        nombreJugador:
+          type: string
+        idEquipo:
+          type: integer
+          format: int64
+        nombreEquipo:
+          type: string
+        totalGoles:
+          type: integer
+
+    CambioJugadorDTO:
+      type: object
+      required: [idJugadorSale, idJugadorEntra, minuto]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        idPartido:
+          type: integer
+          format: int64
+          readOnly: true
+          description: Se recibe por la URL, no en el body.
+        idJugadorSale:
+          type: integer
+          format: int64
+        idJugadorEntra:
+          type: integer
+          format: int64
+        minuto:
+          type: integer
+          minimum: 0
+        jugadorSale:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/JugadorDTO"
+        jugadorEntra:
+          readOnly: true
+          allOf:
+            - $ref: "#/components/schemas/JugadorDTO"
+        fechaRegistro:
+          type: string
+          format: date-time
+          readOnly: true
+
+    RegistroInformativoDTO:
+      type: object
+      required: [titulo, contenido]
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        titulo:
+          type: string
+          maxLength: 150
+        contenido:
+          type: string
+        fechaPublicacion:
+          type: string
+          format: date-time
+          readOnly: true
+
+    ImagenGaleriaDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          readOnly: true
+        imagenUrl:
+          type: string
+          readOnly: true
+        fechaSubida:
+          type: string
+          format: date-time
+          readOnly: true
+        mensaje:
+          type: string

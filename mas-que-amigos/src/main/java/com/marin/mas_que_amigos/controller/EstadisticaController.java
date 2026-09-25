@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.controller;
 
 import com.marin.mas_que_amigos.dto.EstadisticaDTO;
+import com.marin.mas_que_amigos.dto.GoleadorDTO;
 import com.marin.mas_que_amigos.service.EstadisticaService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -83,6 +84,16 @@ public class EstadisticaController {
             @Parameter(description = "Id del partido") @RequestParam @Min(1) Long idPartido) {
         Optional<EstadisticaDTO> existente = estadisticaService.buscarExistente(idJugador, idPartido);
         return existente.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @Operation(summary = "Obtener el goleador del torneo",
+            description = "Devuelve al jugador o jugadores con más goles sumando todos los partidos del torneo, sin importar el equipo. "
+            + "Si dos o más jugadores empatan en el máximo, se devuelven todos los empatados.")
+    @ApiResponse(responseCode = "200", description = "Goleador o goleadores del torneo (lista vacía si no hay goles registrados)",
+            content = @Content(schema = @Schema(implementation = GoleadorDTO.class)))
+    @GetMapping("/goleador")
+    public ResponseEntity<List<GoleadorDTO>> obtenerGoleador() {
+        return ResponseEntity.ok(estadisticaService.obtenerGoleadores());
     }
 
     @Operation(summary = "Registrar estadística", description = "Registra el rendimiento de un jugador (goles, tarjetas, asistencias) en un partido que ya haya iniciado. "

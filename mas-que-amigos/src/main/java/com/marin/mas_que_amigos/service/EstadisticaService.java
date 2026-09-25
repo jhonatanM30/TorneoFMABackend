@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.EstadisticaDTO;
+import com.marin.mas_que_amigos.dto.GoleadorDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.EstadisticaMapper;
@@ -13,8 +14,10 @@ import com.marin.mas_que_amigos.model.Estadistica;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.Partido;
 import com.marin.mas_que_amigos.repository.EstadisticaRepository;
+import com.marin.mas_que_amigos.repository.EstadisticaRepository.GoleadorProyeccion;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -57,6 +60,27 @@ public class EstadisticaService {
     public Optional<EstadisticaDTO> buscarExistente(Long idJugador, Long idPartido) {
         return estadisticaRepository.findByJugadorIdAndPartidoId(idJugador, idPartido)
                 .map(estadisticaMapper::toDTO);
+    }
+
+    // Goleador del torneo: no existe entidad Torneo, asi que se agrega sobre
+    // todos los partidos existentes (ver proposal.md/design.md del change
+    // add-top-scorer-endpoint). El repositorio ya devuelve las filas
+    // ordenadas por total de goles descendente, asi que la primera fila es
+    // el maximo; si mas de un jugador comparte ese maximo, se devuelven
+    // todos los empatados en vez de elegir uno arbitrariamente.
+    public List<GoleadorDTO> obtenerGoleadores() {
+        List<GoleadorProyeccion> filas = estadisticaRepository.obtenerTotalGolesPorJugador();
+
+        if (filas.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        long maximoGoles = filas.get(0).getTotalGoles();
+
+        return filas.stream()
+                .filter(fila -> fila.getTotalGoles() == maximoGoles)
+                .map(estadisticaMapper::toGoleadorDTO)
+                .collect(Collectors.toList());
     }
 
     // Hallazgo post-despliegue (fase9): "al registrar una estadistica se

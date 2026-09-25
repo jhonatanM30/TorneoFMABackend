@@ -6,9 +6,11 @@
 package com.marin.mas_que_amigos.mapper;
 
 import com.marin.mas_que_amigos.dto.EstadisticaDTO;
+import com.marin.mas_que_amigos.dto.GoleadorDTO;
 import com.marin.mas_que_amigos.model.Estadistica;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.repository.EstadisticaRepository.GoleadorProyeccion;
 import org.springframework.stereotype.Component;
 
 /**
@@ -52,5 +54,15 @@ public class EstadisticaMapper {
         estadistica.setPartido(partido);
 
         return estadistica;
+    }
+
+    public GoleadorDTO toGoleadorDTO(GoleadorProyeccion fila) {
+        GoleadorDTO dto = new GoleadorDTO();
+        dto.setIdJugador(fila.getIdJugador());
+        dto.setNombreJugador(fila.getNombreJugador());
+        dto.setIdEquipo(fila.getIdEquipo());
+        dto.setNombreEquipo(fila.getNombreEquipo());
+        dto.setTotalGoles(fila.getTotalGoles().intValue());
+        return dto;
     }
 }

@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.repository;
 
 import com.marin.mas_que_amigos.model.Estadistica;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -48,4 +49,26 @@ public interface EstadisticaRepository extends JpaRepository<Estadistica, Long>{
     // PartidoService#recalcularGoles.
     @Query("SELECT COALESCE(SUM(e.goles), 0) FROM Estadistica e WHERE e.partido.id = :idPartido AND e.jugador.equipo.id = :idEquipo")
     int sumarGolesPorEquipo(@Param("idPartido") Long idPartido, @Param("idEquipo") Long idEquipo);
+
+    // Goleador del torneo: suma los goles de cada jugador en todos los
+    // partidos (sin filtrar por equipo ni por estado del partido, torneo
+    // unico implicito - ver design.md del change add-top-scorer-endpoint).
+    // Se ordena descendente para que el servicio pueda tomar la primera fila
+    // como el maximo y filtrar los jugadores empatados con ese maximo.
+    @Query("SELECT e.jugador.id AS idJugador, e.jugador.nombre AS nombreJugador, "
+            + "e.jugador.equipo.id AS idEquipo, e.jugador.equipo.nombre AS nombreEquipo, "
+            + "SUM(e.goles) AS totalGoles "
+            + "FROM Estadistica e "
+            + "GROUP BY e.jugador.id, e.jugador.nombre, e.jugador.equipo.id, e.jugador.equipo.nombre "
+            + "HAVING SUM(e.goles) > 0 "
+            + "ORDER BY SUM(e.goles) DESC")
+    List<GoleadorProyeccion> obtenerTotalGolesPorJugador();
+
+    interface GoleadorProyeccion {
+        Long getIdJugador();
+        String getNombreJugador();
+        Long getIdEquipo();
+        String getNombreEquipo();
+        Long getTotalGoles();
+    }
 }
