@@ -3,6 +3,9 @@ package com.marin.mas_que_amigos.dto;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.marin.mas_que_amigos.model.Jugador.Posicion;
+import java.math.BigDecimal;
+import javax.validation.constraints.DecimalMin;
+import javax.validation.constraints.Digits;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -38,6 +41,11 @@ public class JugadorDTO {
     // subida, igual que en Equipo).
     @Size(max = 255, message = "La URL de la imagen no puede exceder 255 caracteres.")
     private String imagenUrl;
+
+    // Opcional: sin valor, al crear queda en 0 y al editar se conserva el actual.
+    @DecimalMin(value = "0.00", message = "El costo no puede ser negativo.")
+    @Digits(integer = 10, fraction = 2, message = "El costo admite hasta 10 enteros y 2 decimales.")
+    private BigDecimal costo;
 
     private String indicadorRespuesta;
     private String mensaje;

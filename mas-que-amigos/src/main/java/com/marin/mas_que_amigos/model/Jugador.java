@@ -1,6 +1,7 @@
 package com.marin.mas_que_amigos.model;
 
 import java.io.Serializable;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -40,6 +41,11 @@ public class Jugador implements Serializable {
     // /uploads/jugadores/** (ver JugadorService#actualizarImagenJugador).
     @Column(name = "imagen_url")
     private String imagenUrl;
+
+    // Valor del jugador (sin divisa); se copia como snapshot al solicitar un
+    // traspaso (ver PlayerTransferService). Los jugadores previos quedan en 0.
+    @Column(name = "costo", nullable = false, precision = 12, scale = 2)
+    private BigDecimal costo = BigDecimal.ZERO;
 
     // Enumeración de las posibles posiciones de los jugadores
     public enum Posicion {

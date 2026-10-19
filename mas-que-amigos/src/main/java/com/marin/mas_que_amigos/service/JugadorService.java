@@ -196,6 +196,10 @@ public class JugadorService {
         jugadorExistente.setEdad(jugadorDTO.getEdad());
         jugadorExistente.setDorsal(jugadorDTO.getDorsal());
         jugadorExistente.setEquipo(equipoReal);
+        // Sin costo en la petición se conserva el actual (compatibilidad con clientes previos).
+        if (jugadorDTO.getCosto() != null) {
+            jugadorExistente.setCosto(jugadorDTO.getCosto());
+        }
 
         Jugador actualizado = jugadorRepository.save(jugadorExistente);
 

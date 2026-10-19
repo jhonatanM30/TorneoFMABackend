@@ -29,6 +29,9 @@ public class JugadorMapper {
         jugador.setEdad(dto.getEdad());
         jugador.setDorsal(dto.getDorsal());
         jugador.setImagenUrl(dto.getImagenUrl());
+        if (dto.getCosto() != null) {
+            jugador.setCosto(dto.getCosto());
+        }
 
         return jugador;
     }
@@ -43,6 +46,7 @@ public class JugadorMapper {
         dto.setDorsal(jugador.getDorsal());
         dto.setEdad(jugador.getEdad());
         dto.setImagenUrl(jugador.getImagenUrl());
+        dto.setCosto(jugador.getCosto());
 
         // Solo incluir el ID del equipo en vez de toda la entidad para evitar recursión infinita
         dto.setIdEquipo(jugador.getEquipo().getId());
@@ -62,6 +66,7 @@ public class JugadorMapper {
         dto.setDorsal(jugador.getDorsal());
         dto.setEdad(jugador.getEdad());
         dto.setImagenUrl(jugador.getImagenUrl());
+        dto.setCosto(jugador.getCosto());
 
         return dto;
     }

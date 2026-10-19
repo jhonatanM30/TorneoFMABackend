@@ -37,6 +37,13 @@ public class GlobalExceptionHandler {
     }
     
     
+    @ExceptionHandler(TransferNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleTransferNotFound(TransferNotFoundException ex) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", ex.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ErrorResponseDTO> handleBusinessException(BusinessException ex) {
       

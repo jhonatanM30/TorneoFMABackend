@@ -25,4 +25,14 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).containsEntry("error", "Jugador no encontrado");
     }
+
+    @Test
+    void handleTransferNotFound_returns404WithMessage() {
+        TransferNotFoundException ex = new TransferNotFoundException("El traspaso no existe");
+
+        ResponseEntity<Map<String, String>> response = handler.handleTransferNotFound(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).containsEntry("error", "El traspaso no existe");
+    }
 }

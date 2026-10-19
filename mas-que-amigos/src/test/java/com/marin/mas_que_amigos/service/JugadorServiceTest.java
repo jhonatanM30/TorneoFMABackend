@@ -15,6 +15,7 @@ import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.Jugador.Posicion;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -147,6 +148,57 @@ class JugadorServiceTest {
         assertThat(captor.getValue()).isSameAs(existente);
         assertThat(captor.getValue().getNombre()).isEqualTo("Jhon Actualizado");
         assertThat(captor.getValue().getEquipo()).isSameAs(equipoReal);
+    }
+
+    @Test
+    void actualizarJugador_withoutCost_keepsExistingCost() {
+        JugadorDTO dto = new JugadorDTO();
+        dto.setId(10L);
+        dto.setIdEquipo(1L);
+        dto.setDorsal(9);
+
+        Jugador existente = new Jugador();
+        existente.setId(10L);
+        existente.setCosto(new BigDecimal("500.00"));
+        Equipo equipoReal = new Equipo();
+        equipoReal.setId(1L);
+
+        when(jugadorRepository.existsByIdAndEquipoId(10L, 1L)).thenReturn(true);
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(9, 1L, 10L)).thenReturn(false);
+        when(jugadorRepository.findById(10L)).thenReturn(Optional.of(existente));
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(equipoReal));
+        when(jugadorRepository.save(existente)).thenReturn(existente);
+        when(mapper.toDTO(existente)).thenReturn(new JugadorDTO());
+
+        jugadorService.actualizarJugador(dto);
+
+        assertThat(existente.getCosto()).isEqualByComparingTo("500.00");
+    }
+
+    @Test
+    void actualizarJugador_withCost_updatesCost() {
+        JugadorDTO dto = new JugadorDTO();
+        dto.setId(10L);
+        dto.setIdEquipo(1L);
+        dto.setDorsal(9);
+        dto.setCosto(new BigDecimal("750.00"));
+
+        Jugador existente = new Jugador();
+        existente.setId(10L);
+        existente.setCosto(new BigDecimal("500.00"));
+        Equipo equipoReal = new Equipo();
+        equipoReal.setId(1L);
+
+        when(jugadorRepository.existsByIdAndEquipoId(10L, 1L)).thenReturn(true);
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(9, 1L, 10L)).thenReturn(false);
+        when(jugadorRepository.findById(10L)).thenReturn(Optional.of(existente));
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(equipoReal));
+        when(jugadorRepository.save(existente)).thenReturn(existente);
+        when(mapper.toDTO(existente)).thenReturn(new JugadorDTO());
+
+        jugadorService.actualizarJugador(dto);
+
+        assertThat(existente.getCosto()).isEqualByComparingTo("750.00");
     }
 
     @Test

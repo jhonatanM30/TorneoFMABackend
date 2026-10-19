@@ -1,0 +1,37 @@
+---
+description: Indica a todos los agentes de IA que usen las reglas consolidadas en base-standards.md
+globs:
+alwaysApply: true
+---
+
+# Usa las reglas base de desarrollo
+
+Todos los agentes de IA que trabajen en este proyecto deben seguir las reglas y lineamientos de desarrollo completos definidos en:
+
+**📋 [docs/base-standards.md](docs/base-standards.md)**
+
+## Directiva clave
+
+- **Única fuente de verdad**: Todas las reglas de desarrollo, estándares de código, prácticas de pruebas y requisitos de flujo de trabajo se mantienen en `base-standards.md`
+- **Sin duplicación de reglas**: No referencies ni sigas otros archivos de reglas; `base-standards.md` contiene el conjunto de reglas completo y autorizado
+- **Siempre vigente**: `base-standards.md` es la configuración que se mantiene activamente; otros archivos de reglas pueden estar desactualizados
+
+## Qué incluye base-standards.md
+
+- **Principios centrales**: Tareas pequeñas, una a la vez; Test-Driven Development (TDD); seguridad de tipos; nombres claros; cambios incrementales
+- **Estándares de idioma**: harness en español, código en inglés
+- **Estándares específicos**: Enlaces a estándares detallados para:
+  - Desarrollo backend (API, patrones de base de datos, pruebas, seguridad)
+  - Desarrollo frontend (componentes de React, lineamientos de UI/UX)
+  - Documentación (estructura, formato, mantenimiento)
+
+## Cumplimiento
+
+Antes de iniciar cualquier trabajo de desarrollo, los agentes deben:
+1. Leer y comprender todas las reglas en `base-standards.md`
+2. Seguir el proceso TDD y los principios centrales definidos allí
+3. Usar las herramientas, frameworks de pruebas y estándares especificados
+4. Mantener los estándares requeridos de calidad de código y seguridad de tipos
+5. Consultar los documentos de estándares específicos (backend, frontend, documentación) para lineamientos detallados
+
+**Recuerda**: `base-standards.md` es el reglamento de desarrollo completo de este proyecto.
