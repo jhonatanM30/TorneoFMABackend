@@ -5,21 +5,28 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.marin.mas_que_amigos.dto.TransferDTO;
 import com.marin.mas_que_amigos.dto.TransferRequestDTO;
+import com.marin.mas_que_amigos.exception.AuthenticationFailedException;
 import com.marin.mas_que_amigos.exception.BusinessException;
+import com.marin.mas_que_amigos.exception.ForbiddenOperationException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
 import com.marin.mas_que_amigos.exception.TransferNotFoundException;
 import com.marin.mas_que_amigos.mapper.PlayerTransferMapper;
+import com.marin.mas_que_amigos.model.AppUser;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.PlayerTransfer;
 import com.marin.mas_que_amigos.model.TransferStatus;
+import com.marin.mas_que_amigos.model.UserRole;
+import com.marin.mas_que_amigos.repository.AppUserRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
 import com.marin.mas_que_amigos.repository.PlayerTransferRepository;
+import com.marin.mas_que_amigos.security.AuthenticatedUser;
 import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -42,8 +49,14 @@ class PlayerTransferServiceTest {
     private JugadorRepository jugadorRepository;
     @Mock
     private EquipoRepository equipoRepository;
+    @Mock
+    private AppUserRepository userRepository;
 
     private PlayerTransferService service;
+
+    private static final Long DT_USER_ID = 77L;
+    private final AuthenticatedUser admin = new AuthenticatedUser(1L, UserRole.ADMIN);
+    private final AuthenticatedUser dt = new AuthenticatedUser(DT_USER_ID, UserRole.DT);
 
     private Equipo originTeam;
     private Equipo destinationTeam;
@@ -52,7 +65,7 @@ class PlayerTransferServiceTest {
     @BeforeEach
     void setUp() {
         service = new PlayerTransferService(transferRepository, jugadorRepository, equipoRepository,
-                new PlayerTransferMapper());
+                new PlayerTransferMapper(), userRepository);
 
         originTeam = team(ORIGIN_TEAM_ID, "Macalister");
         destinationTeam = team(DESTINATION_TEAM_ID, "Real Madrid");
@@ -92,7 +105,7 @@ class PlayerTransferServiceTest {
             return saved;
         });
 
-        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null));
+        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin);
 
         ArgumentCaptor<PlayerTransfer> captor = ArgumentCaptor.forClass(PlayerTransfer.class);
         verify(transferRepository).save(captor.capture());
@@ -124,7 +137,7 @@ class PlayerTransferServiceTest {
         when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(false);
         when(transferRepository.save(any(PlayerTransfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null));
+        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin);
         player.setCosto(new BigDecimal("9999.00"));
 
         assertThat(result.getCost()).isEqualByComparingTo("1500.00");
@@ -138,7 +151,7 @@ class PlayerTransferServiceTest {
         when(jugadorRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
         when(equipoRepository.findById(ORIGIN_TEAM_ID)).thenReturn(Optional.of(originTeam));
 
-        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, ORIGIN_TEAM_ID, null)))
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, ORIGIN_TEAM_ID, null), admin))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("ya pertenece");
         verify(transferRepository, never()).save(any(PlayerTransfer.class));
@@ -148,7 +161,7 @@ class PlayerTransferServiceTest {
     void requestTransfer_playerNotFound_throwsJugadorNotFoundException() {
         when(jugadorRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.requestTransfer(request(99L, DESTINATION_TEAM_ID, null)))
+        assertThatThrownBy(() -> service.requestTransfer(request(99L, DESTINATION_TEAM_ID, null), admin))
                 .isInstanceOf(JugadorNotFoundException.class);
         verify(transferRepository, never()).save(any(PlayerTransfer.class));
     }
@@ -158,7 +171,7 @@ class PlayerTransferServiceTest {
         when(jugadorRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
         when(equipoRepository.findById(99L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, 99L, null)))
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, 99L, null), admin))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("equipos existentes");
         verify(transferRepository, never()).save(any(PlayerTransfer.class));
@@ -171,8 +184,8 @@ class PlayerTransferServiceTest {
         when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(false);
         when(transferRepository.save(any(PlayerTransfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        TransferDTO first = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null));
-        TransferDTO second = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null));
+        TransferDTO first = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin);
+        TransferDTO second = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin);
 
         assertThat(first.getStatus()).isEqualTo(TransferStatus.PENDING);
         assertThat(second.getStatus()).isEqualTo(TransferStatus.PENDING);
@@ -185,7 +198,7 @@ class PlayerTransferServiceTest {
         when(equipoRepository.findById(DESTINATION_TEAM_ID)).thenReturn(Optional.of(destinationTeam));
         when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(true);
 
-        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null)))
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("dorsal 7");
         verify(transferRepository, never()).save(any(PlayerTransfer.class));
@@ -198,9 +211,80 @@ class PlayerTransferServiceTest {
         when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(11, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(false);
         when(transferRepository.save(any(PlayerTransfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, 11));
+        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, 11), admin);
 
         assertThat(result.getDestinationDorsal()).isEqualTo(11);
+    }
+
+    // ------------------------------------------------- requestTransfer: who asks (DT rules)
+
+    private AppUser dtAccount(Equipo team) {
+        AppUser account = new AppUser();
+        account.setId(DT_USER_ID);
+        account.setUsername("joan");
+        account.setRole(UserRole.DT);
+        account.setTeam(team);
+        return account;
+    }
+
+    @Test
+    void requestTransfer_dtToItsOwnTeam_isAcceptedAndTheTeamIsReadFromTheAccount() {
+        // The token only says who the DT is; the team is looked up in the account at request time,
+        // so a team assigned after login is honored.
+        when(userRepository.findById(DT_USER_ID)).thenReturn(Optional.of(dtAccount(destinationTeam)));
+        when(jugadorRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
+        when(equipoRepository.findById(DESTINATION_TEAM_ID)).thenReturn(Optional.of(destinationTeam));
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(false);
+        when(transferRepository.save(any(PlayerTransfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        TransferDTO result = service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), dt);
+
+        assertThat(result.getStatus()).isEqualTo(TransferStatus.PENDING);
+        assertThat(result.getDestinationTeamId()).isEqualTo(DESTINATION_TEAM_ID);
+        verify(userRepository).findById(DT_USER_ID);
+    }
+
+    @Test
+    void requestTransfer_dtToAnotherTeam_throwsForbiddenOperationException() {
+        when(userRepository.findById(DT_USER_ID)).thenReturn(Optional.of(dtAccount(originTeam)));
+
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), dt))
+                .isInstanceOf(ForbiddenOperationException.class)
+                .hasMessageContaining("hacia tu equipo");
+        verifyNoInteractions(jugadorRepository, equipoRepository);
+        verify(transferRepository, never()).save(any(PlayerTransfer.class));
+    }
+
+    @Test
+    void requestTransfer_dtWithoutTeam_throwsForbiddenOperationException() {
+        when(userRepository.findById(DT_USER_ID)).thenReturn(Optional.of(dtAccount(null)));
+
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), dt))
+                .isInstanceOf(ForbiddenOperationException.class)
+                .hasMessageContaining("equipo asignado");
+        verifyNoInteractions(jugadorRepository, equipoRepository);
+        verify(transferRepository, never()).save(any(PlayerTransfer.class));
+    }
+
+    @Test
+    void requestTransfer_whenTheDtAccountNoLongerExists_throwsAuthenticationFailed() {
+        when(userRepository.findById(DT_USER_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), dt))
+                .isInstanceOf(AuthenticationFailedException.class);
+        verify(transferRepository, never()).save(any(PlayerTransfer.class));
+    }
+
+    @Test
+    void requestTransfer_adminToAnyTeam_doesNotLookUpAnyTeamOfTheAccount() {
+        when(jugadorRepository.findById(PLAYER_ID)).thenReturn(Optional.of(player));
+        when(equipoRepository.findById(DESTINATION_TEAM_ID)).thenReturn(Optional.of(destinationTeam));
+        when(jugadorRepository.existsByDorsalAndEquipoIdAndIdNot(7, DESTINATION_TEAM_ID, PLAYER_ID)).thenReturn(false);
+        when(transferRepository.save(any(PlayerTransfer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.requestTransfer(request(PLAYER_ID, DESTINATION_TEAM_ID, null), admin);
+
+        verifyNoInteractions(userRepository);
     }
 
     // ---------------------------------------------------------------- confirmTransfer

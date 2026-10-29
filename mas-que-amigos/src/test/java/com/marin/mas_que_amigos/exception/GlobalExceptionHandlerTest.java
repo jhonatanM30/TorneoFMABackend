@@ -2,6 +2,7 @@ package com.marin.mas_que_amigos.exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.marin.mas_que_amigos.dto.ErrorResponseDTO;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,38 @@ class GlobalExceptionHandlerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(response.getBody()).containsEntry("error", "Jugador no encontrado");
+    }
+
+    @Test
+    void handleAuthenticationFailed_returns401WithTheStandardErrorBody() {
+        AuthenticationFailedException ex = new AuthenticationFailedException("Usuario o contraseña incorrectos");
+
+        ResponseEntity<ErrorResponseDTO> response = handler.handleAuthenticationFailed(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getBody().getIndicadorRespuesta()).isEqualTo("No autorizado");
+        assertThat(response.getBody().getMensaje()).isEqualTo("Usuario o contraseña incorrectos");
+    }
+
+    @Test
+    void handleForbiddenOperation_returns403WithTheStandardErrorBody() {
+        ForbiddenOperationException ex = new ForbiddenOperationException("Solo puedes solicitar traspasos hacia tu equipo.");
+
+        ResponseEntity<ErrorResponseDTO> response = handler.handleForbiddenOperation(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody().getIndicadorRespuesta()).isEqualTo("Prohibido");
+        assertThat(response.getBody().getMensaje()).isEqualTo("Solo puedes solicitar traspasos hacia tu equipo.");
+    }
+
+    @Test
+    void handleUserNotFound_returns404WithMessage() {
+        UserNotFoundException ex = new UserNotFoundException("La cuenta no existe");
+
+        ResponseEntity<Map<String, String>> response = handler.handleUserNotFound(ex);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(response.getBody()).containsEntry("error", "La cuenta no existe");
     }
 
     @Test

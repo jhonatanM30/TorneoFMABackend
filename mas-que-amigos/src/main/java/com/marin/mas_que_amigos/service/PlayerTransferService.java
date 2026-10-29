@@ -2,17 +2,23 @@ package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.TransferDTO;
 import com.marin.mas_que_amigos.dto.TransferRequestDTO;
+import com.marin.mas_que_amigos.exception.AuthenticationFailedException;
 import com.marin.mas_que_amigos.exception.BusinessException;
+import com.marin.mas_que_amigos.exception.ForbiddenOperationException;
 import com.marin.mas_que_amigos.exception.JugadorNotFoundException;
 import com.marin.mas_que_amigos.exception.TransferNotFoundException;
 import com.marin.mas_que_amigos.mapper.PlayerTransferMapper;
+import com.marin.mas_que_amigos.model.AppUser;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Jugador;
 import com.marin.mas_que_amigos.model.PlayerTransfer;
 import com.marin.mas_que_amigos.model.TransferStatus;
+import com.marin.mas_que_amigos.model.UserRole;
+import com.marin.mas_que_amigos.repository.AppUserRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.JugadorRepository;
 import com.marin.mas_que_amigos.repository.PlayerTransferRepository;
+import com.marin.mas_que_amigos.security.AuthenticatedUser;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -27,21 +33,25 @@ public class PlayerTransferService {
     private final JugadorRepository jugadorRepository;
     private final EquipoRepository equipoRepository;
     private final PlayerTransferMapper mapper;
+    private final AppUserRepository userRepository;
 
     public PlayerTransferService(PlayerTransferRepository transferRepository, JugadorRepository jugadorRepository,
-            EquipoRepository equipoRepository, PlayerTransferMapper mapper) {
+            EquipoRepository equipoRepository, PlayerTransferMapper mapper, AppUserRepository userRepository) {
         this.transferRepository = transferRepository;
         this.jugadorRepository = jugadorRepository;
         this.equipoRepository = equipoRepository;
         this.mapper = mapper;
+        this.userRepository = userRepository;
     }
 
     /**
      * Creates a PENDING transfer request. The player is not moved here, and
      * several PENDING requests may coexist for the same player: only the first
-     * one to be confirmed wins.
+     * one to be confirmed wins. An ADMIN may target any team; a DT only its own.
      */
-    public TransferDTO requestTransfer(TransferRequestDTO request) {
+    public TransferDTO requestTransfer(TransferRequestDTO request, AuthenticatedUser requester) {
+        authorizeDestination(requester, request.getDestinationTeamId());
+
         Jugador player = jugadorRepository.findById(request.getPlayerId())
                 .orElseThrow(() -> new JugadorNotFoundException(
                         "Fuera de juego! No se encontró registros de jugador con Id " + request.getPlayerId() + "."));
@@ -173,6 +183,27 @@ public class PlayerTransferService {
 
     private BusinessException notPending() {
         return new BusinessException("La solicitud de traspaso ya no está pendiente.");
+    }
+
+    /**
+     * A DT can only ask for transfers into its own team. The team is read from the
+     * account now (not from the token), because an admin may have assigned it after
+     * the DT logged in.
+     */
+    private void authorizeDestination(AuthenticatedUser requester, Long destinationTeamId) {
+        if (requester.getRole() != UserRole.DT) {
+            return;
+        }
+        AppUser account = userRepository.findById(requester.getId())
+                .orElseThrow(() -> new AuthenticationFailedException("La sesión ya no es válida. Inicia sesión de nuevo."));
+        Equipo ownTeam = account.getTeam();
+        if (ownTeam == null) {
+            throw new ForbiddenOperationException("No tienes un equipo asignado, por eso no puedes solicitar traspasos. "
+                    + "Pídele a la organización que te asigne uno.");
+        }
+        if (!ownTeam.getId().equals(destinationTeamId)) {
+            throw new ForbiddenOperationException("Solo puedes solicitar traspasos hacia tu equipo.");
+        }
     }
 
     private int effectiveDorsal(Integer requestedDorsal, Jugador player) {

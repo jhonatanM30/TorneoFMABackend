@@ -15,13 +15,24 @@ info:
     - Registros informativos (tipo blog) y galería de fotos para la página de Inicio
     - Carga de imágenes (escudo de equipo, foto de jugador, fotos de galería)
 
-    ## Autorización de Director Técnico
-    Todas las operaciones de escritura (POST, PUT, DELETE) sobre `/api/**`
-    requieren el header `X-Director-Tecnico-Key` con la clave configurada en
-    `app.director-tecnico.clave`. Las operaciones de solo consulta (GET, HEAD,
-    OPTIONS) no la requieren. Si la clave falta o es incorrecta, la API
-    responde `401` con un `ErrorResponseDTO`. Ver `POST /api/director-tecnico/validar`
-    para validar la clave sin ejecutar ninguna acción.
+    ## Autenticación y roles
+    Hay tres tipos de persona:
+    - **Visitante** (sin cuenta): solo puede consultar (`GET`) equipos, jugadores,
+      partidos, alineaciones, estadísticas, galería, registros informativos y traspasos.
+    - **DT** (cuenta con rol `DT`, con un equipo asignado): consulta lo mismo y además
+      puede solicitar traspasos **hacia su propio equipo**.
+    - **ADMIN** (cuenta con rol `ADMIN`): acceso total, incluida la gestión de usuarios y
+      la confirmación o el rechazo de traspasos.
+
+    Se inicia sesión con `POST /api/auth/login`, que devuelve un token de sesión de corta
+    vida (3 minutos por defecto). Se envía en cada petición como
+    `Authorization: Bearer <token>` y se renueva con `POST /api/auth/refresh` mientras
+    haya actividad en pantalla; si pasan 3 minutos sin renovar, la sesión se cierra.
+    Los errores de acceso tienen el cuerpo `{indicadorRespuesta, mensaje}`:
+    `401` si falta, venció o es inválido el token (o la sesión no existe) y `403` si el
+    rol no alcanza para la operación. Un token inválido o vencido se rechaza con `401`
+    incluso en operaciones de consulta, así que el cliente debe dejar de enviarlo al
+    cerrarse la sesión.
 
   version: 0.0.0.001
   contact:
@@ -34,7 +45,7 @@ servers:
     description: Servidor de desarrollo
 
 security:
-  - directorTecnicoKey: []
+  - bearerAuth: []
 
 paths:
   /api/equipos:
@@ -1024,6 +1035,8 @@ paths:
         es una copia del costo vigente del jugador. Pueden coexistir varias solicitudes
         pendientes del mismo jugador. Si el dorsal del jugador está ocupado en el equipo
         destino, hay que enviar `destinationDorsal` con un dorsal libre.
+        Pueden solicitarla un ADMIN (hacia cualquier equipo) y un DT (solo hacia el equipo asignado
+        a su cuenta, que se lee de la cuenta y no del token; un DT sin equipo no puede solicitarla).
       tags: [Traspasos]
       requestBody:
         required: true
@@ -1040,6 +1053,18 @@ paths:
                 $ref: "#/components/schemas/TransferDTO"
         "400":
           description: Datos inválidos, equipo destino inexistente, mismo equipo o dorsal ocupado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Un DT sin equipo asignado, o que pide un traspaso hacia un equipo que no es el suyo
           content:
             application/json:
               schema:
@@ -1098,8 +1123,8 @@ paths:
         Confirma una solicitud PENDING: el jugador pasa al equipo destino (y al dorsal
         indicado, si lo hubo) y las demás solicitudes PENDING del mismo jugador se
         rechazan automáticamente, todo en una sola operación atómica. Si falla (por
-        ejemplo, dorsal ocupado) no cambia nada. Mientras no exista el rol de organizador
-        se exige la clave de Director Técnico.
+        ejemplo, dorsal ocupado) no cambia nada. Solo un ADMIN puede confirmar (un DT recibe 403
+        y un visitante 401).
       tags: [Traspasos]
       parameters:
         - in: path
@@ -1135,7 +1160,9 @@ paths:
   /api/transfers/{id}/reject:
     post:
       summary: Rechazar un traspaso
-      description: Rechaza una solicitud PENDING sin modificar al jugador ni las demás solicitudes.
+      description: |
+        Rechaza una solicitud PENDING sin modificar al jugador ni las demás solicitudes.
+        Solo un ADMIN puede rechazar (un DT recibe 403 y un visitante 401).
       tags: [Traspasos]
       parameters:
         - in: path
@@ -1338,35 +1365,211 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDTO"
 
-  /api/director-tecnico/validar:
+  /api/auth/login:
     post:
-      summary: Validar la clave de Director Técnico
+      summary: Iniciar sesión
       description: |
-        No hace nada por sí mismo: si la petición llega hasta acá es porque
-        `DirectorTecnicoInterceptor` ya validó el header
-        `X-Director-Tecnico-Key`. Se usa para confirmar la clave en el
-        momento de ingresarla, antes de dejar pasar al usuario a modo
-        Director Técnico en el frontend.
-      tags: [Director Técnico]
+        Valida usuario y contraseña y devuelve un token de sesión de corta vida.
+        El usuario no distingue mayúsculas de minúsculas. Si el usuario no existe o la
+        contraseña es incorrecta la respuesta es la misma (`401`, "Usuario o contraseña
+        incorrectos"), para no revelar si el usuario existe.
+      tags: [Autenticación]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequestDTO"
       responses:
         "200":
-          description: La clave enviada en X-Director-Tecnico-Key es correcta
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponseDTO"
+        "400":
+          description: Usuario o contraseña vacíos (mapa campo a mensaje)
         "401":
-          description: La clave enviada es incorrecta o falta
+          description: Usuario o contraseña incorrectos
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDTO"
 
+  /api/auth/refresh:
+    post:
+      summary: Renovar la sesión
+      description: |
+        Con un token todavía vigente devuelve uno nuevo con la vigencia completa. El rol del
+        token nuevo es el que la cuenta tiene hoy en la base de datos. El front lo llama
+        mientras hay actividad en pantalla; con un token vencido no se puede renovar y hay
+        que iniciar sesión de nuevo.
+      tags: [Autenticación]
+      responses:
+        "200":
+          description: Token renovado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponseDTO"
+        "401":
+          description: Token ausente, inválido o vencido, o la cuenta ya no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/auth/me:
+    get:
+      summary: Sesión actual
+      description: Devuelve quién es la persona del token, con su rol y su equipo asignado (nulo si no tiene).
+      tags: [Autenticación]
+      responses:
+        "200":
+          description: Datos de la sesión
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSummaryDTO"
+        "401":
+          description: Token ausente, inválido o vencido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/users:
+    get:
+      summary: Listar cuentas
+      description: Solo ADMIN. Devuelve las cuentas ordenadas por usuario, con rol y equipo. Nunca incluye contraseñas.
+      tags: [Usuarios]
+      responses:
+        "200":
+          description: Listado de cuentas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede listar cuentas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    post:
+      summary: Crear una cuenta
+      description: |
+        Solo ADMIN. Crea una cuenta con usuario, contraseña y, opcionalmente, rol (`ADMIN` o `DT`;
+        por defecto `DT`) y equipo (solo `DT`; un equipo puede tener una sola cuenta). El usuario se
+        guarda en minúsculas.
+      tags: [Usuarios]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreateRequestDTO"
+      responses:
+        "201":
+          description: Cuenta creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+        "400":
+          description: Datos inválidos, usuario repetido, rol inexistente, o equipo inexistente, ocupado o asignado a un ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede crear cuentas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/users/{id}/team:
+    put:
+      summary: Asignar, cambiar o quitar el equipo de un DT
+      description: |
+        Solo ADMIN. Un DT tiene como máximo un equipo y un equipo como máximo un DT. `teamId` nulo
+        quita el equipo. Las cuentas ADMIN no pueden tener equipo.
+      tags: [Usuarios]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserTeamRequestDTO"
+      responses:
+        "200":
+          description: Equipo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDTO"
+        "400":
+          description: Equipo inexistente, equipo con otro DT o cuenta ADMIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede asignar equipos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: La cuenta no existe
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
 components:
   securitySchemes:
-    directorTecnicoKey:
-      type: apiKey
-      in: header
-      name: X-Director-Tecnico-Key
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
       description: |
-        Requerida en toda operación de escritura (POST/PUT/DELETE) sobre
-        /api/**. No se exige en operaciones de solo consulta (GET/HEAD/OPTIONS).
+        Token de sesión obtenido en `POST /api/auth/login` (3 minutos, renovable con
+        `POST /api/auth/refresh`). Las consultas (GET) son públicas; las escrituras exigen
+        el rol indicado en cada operación.
 
   schemas:
     ErrorResponseDTO:
@@ -1377,7 +1580,105 @@ components:
           example: "No autorizado"
         mensaje:
           type: string
-          example: "Esta acción requiere la clave de Director Técnico."
+          example: "Debes iniciar sesión para realizar esta acción."
+
+    UserRole:
+      type: string
+      enum: [ADMIN, DT]
+
+    LoginRequestDTO:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+
+    UserSummaryDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        teamId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Equipo asignado; nulo si la cuenta no tiene equipo (siempre nulo para ADMIN).
+        teamName:
+          type: string
+          nullable: true
+
+    AuthResponseDTO:
+      type: object
+      properties:
+        token:
+          type: string
+        tokenType:
+          type: string
+          example: Bearer
+        expiresInSeconds:
+          type: integer
+          format: int64
+          example: 180
+        user:
+          $ref: "#/components/schemas/UserSummaryDTO"
+
+    UserCreateRequestDTO:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          pattern: "^[A-Za-z0-9._-]{3,50}$"
+          description: 3 a 50 caracteres; letras, números, punto, guion y guion bajo. Se guarda en minúsculas.
+        password:
+          type: string
+          minLength: 8
+          maxLength: 72
+        role:
+          type: string
+          enum: [ADMIN, DT]
+          description: Opcional; por defecto DT.
+        teamId:
+          type: integer
+          format: int64
+          description: Opcional, solo para cuentas DT.
+
+    UserTeamRequestDTO:
+      type: object
+      properties:
+        teamId:
+          type: integer
+          format: int64
+          nullable: true
+          description: Nulo quita el equipo de la cuenta.
+
+    UserDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        role:
+          $ref: "#/components/schemas/UserRole"
+        teamId:
+          type: integer
+          format: int64
+          nullable: true
+        teamName:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
 
     EquipoDTO:
       type: object

@@ -20,6 +20,7 @@ erDiagram
     JUGADOR ||--o{ PLAYER_TRANSFER : "es traspasado en"
     EQUIPO ||--o{ PLAYER_TRANSFER : "origen"
     EQUIPO ||--o{ PLAYER_TRANSFER : "destino"
+    EQUIPO |o--o| APP_USER : "tiene un DT con cuenta"
 ```
 
 ## Descripción de los modelos
@@ -141,3 +142,21 @@ Solicitud de traspaso de un jugador de su equipo actual a otro equipo. Cada fila
 - Al confirmar una, el jugador pasa al equipo destino y las demás `PENDING` del mismo jugador pasan a `REJECTED` en la misma transacción (no se borran: quedan como registro y salen de la bandeja de pendientes).
 - El historial de equipos de un jugador son sus traspasos `CONFIRMED`.
 - Índices: `(player_id, status)` y `status`.
+
+### 10. AppUser (tabla `app_user`)
+Cuenta para iniciar sesión. Tabla nueva, por eso va en inglés. La crea un administrador (o el sistema, para el administrador inicial); no hay auto-registro.
+
+**Campos:**
+- `id`: identificador único
+- `username`: usuario para iniciar sesión (3 a 50 caracteres: letras, números, punto, guion y guion bajo), único. Se guarda siempre en minúsculas y la comparación no distingue mayúsculas
+- `passwordHash` (`password_hash`): contraseña protegida con BCrypt; nunca se guarda ni se devuelve en claro
+- `role`: enum `ADMIN` | `DT`, guardado como texto en BD. El visitante no tiene cuenta ni rol
+- `createdAt` (`created_at`): fecha y hora de creación
+
+**Relaciones:**
+- `team` (`team_id`): muchos a uno con Equipo, opcional y **único**. Un DT tiene como máximo un equipo y un equipo tiene como máximo una cuenta. Una cuenta `DT` puede estar sin equipo (por ejemplo, mientras espera la aprobación del que solicitó) y una cuenta `ADMIN` nunca tiene equipo
+
+**Reglas:**
+- El administrador inicial se crea al arrancar con `APP_SECURITY_ADMIN_USERNAME` y `APP_SECURITY_ADMIN_PASSWORD`, solo si no existe ya; nunca se modifica una cuenta existente.
+- El texto `Equipo.directorTecnico` no se sincroniza con la cuenta del DT: lo mantiene el administrador.
+- El equipo del DT se consulta siempre en esta tabla (no en el token de sesión), porque puede asignarse después de iniciar sesión.

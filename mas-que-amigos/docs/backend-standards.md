@@ -21,6 +21,7 @@ alwaysApply: true
 - [Documentación de la API (OpenAPI/Swagger)](#documentación-de-la-api-openapiswagger)
 - [Migraciones de base de datos (Flyway)](#migraciones-de-base-de-datos-flyway)
 - [CORS](#cors)
+- [Seguridad (login y roles)](#seguridad-login-y-roles)
 - [Subida de archivos](#subida-de-archivos)
 - [Testing](#testing)
 - [Flujo de trabajo con git](#flujo-de-trabajo-con-git)
@@ -215,6 +216,52 @@ mensaje en español, no un `IllegalArgumentException` genérico ni un
 - Al agregar un nuevo origen de desarrollo o el dominio de producción del
   frontend, se agrega a esa lista explícita; nunca se usa `"*"` cuando
   `allowCredentials` está en `true` (no es válido según la spec CORS).
+
+## Seguridad (login y roles)
+
+- La API usa Spring Security con tokens JWT de corta vida (3 minutos por
+  defecto, `app.security.jwt.ttl`) enviados en `Authorization: Bearer <token>`.
+  No hay sesión en el servidor ni cookies (por eso no hay superficie CSRF). El
+  front renueva el token con `POST /api/auth/refresh` mientras el usuario tiene
+  actividad en pantalla; si pasan 3 minutos sin renovar, la sesión se cierra.
+- **Roles**: visitante (sin cuenta, solo `GET`), `DT` (consulta y solicita
+  traspasos hacia su propio equipo) y `ADMIN` (todo). Las cuentas las crea un
+  administrador (`POST /api/users`); el administrador inicial se siembra al
+  arrancar desde la configuración.
+- **Autorización por URL y método** en `SecurityConfig`, no con `@PreAuthorize`:
+  una `AccessDeniedException` lanzada dentro de un controller la captura el
+  `@ExceptionHandler(Exception.class)` de `GlobalExceptionHandler` y se
+  convertiría en un `500`. En la cadena de filtros, en cambio, la responden
+  `JsonAuthenticationEntryPoint` (`401`) y `JsonAccessDeniedHandler` (`403`),
+  ambos con el cuerpo `{indicadorRespuesta, mensaje}` en español. Las reglas de
+  negocio que dependen de quién llama (por ejemplo, el DT solo solicita
+  traspasos hacia su equipo) se validan en el service y lanzan
+  `ForbiddenOperationException` (`403`).
+- **Un endpoint de escritura nuevo exige `ADMIN` por defecto**: la última regla
+  de `/api/**` es la red de seguridad. Para abrirlo a otro rol hay que agregarlo
+  expresamente en `SecurityConfig` y cubrirlo en `SecurityRulesTest`.
+- **Un token inválido o vencido se rechaza con `401` aunque la operación sea de
+  consulta pública**; el cliente debe dejar de enviarlo cuando la sesión se cierra.
+- **Datos que cambian después de iniciar sesión** (el equipo del DT, el rol) se
+  leen de la cuenta en la base de datos, no del token. El token solo dice quién
+  es la persona y su rol al momento de emitirlo; al renovarlo se vuelve a leer.
+- **Configuración (variables de entorno, sin valores por defecto)**:
+  - `APP_SECURITY_JWT_SECRET`: secreto de firma, al menos 32 caracteres. La app
+    **no arranca** si falta o es corto.
+  - `APP_SECURITY_ADMIN_USERNAME` y `APP_SECURITY_ADMIN_PASSWORD`: administrador
+    inicial. Si faltan, la app arranca sin crearlo (solo consulta) y registra una
+    advertencia. Nunca se modifica una cuenta existente.
+  - `APP_SECURITY_JWT_TTL` (opcional): vigencia del token en formato ISO-8601
+    (por ejemplo `PT3M`).
+  Con Docker Compose se pasan como `environment` del servicio `backend` y se
+  definen en el `.env` del repositorio padre (que no se versiona).
+- La clave fija `X-Director-Tecnico-Key` y su interceptor ya no existen.
+- **Contraseñas**: BCrypt, nunca en claro ni en respuestas ni en el log. El
+  login responde igual si el usuario no existe o la contraseña es incorrecta
+  y compara contra un hash ficticio para no revelar por tiempo si el usuario existe.
+- **Pruebas**: `SecurityRulesTest` recorre la matriz rol por operación sobre la
+  cadena real con tokens reales (H2 en memoria); los tests con credenciales usan
+  los valores de `src/test/resources/application.properties`.
 
 ## Subida de archivos
 
