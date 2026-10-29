@@ -10,7 +10,7 @@ Backend de una aplicación deportiva para gestionar equipos, jugadores, partidos
 > `DIAGNOSTICO_HALLAZGOS.md`, en el repo del frontend. Los cambios de
 > backend que salieron de esa auditoría (subida de escudo y de foto de
 > jugador, búsqueda parcial, edición de partidos, registros informativos,
-> la clave de Director Técnico, y el estado de partido con cambios de
+> el control de acceso de escrituras (hoy login con JWT y roles), y el estado de partido con cambios de
 > jugador) están documentados en las secciones de abajo.
 
 ## ¿Qué puede hacer este proyecto?
@@ -36,8 +36,9 @@ El proyecto es capaz de:
 - Manejar errores con respuestas consistentes en JSON
 - Validar datos de entrada antes de persistirlos
 - Exponer la API para consumo desde frontend web o móvil
-- Exigir una clave de "Director Técnico" en toda operación de escritura
-  (ver sección "Autenticación temporal" más abajo)
+- Iniciar sesión con usuario y contraseña y exigir un rol (administrador o
+  Director Técnico) en las operaciones de escritura
+  (ver sección "Autenticación y roles" más abajo)
 
 ## Arquitectura
 
@@ -50,8 +51,8 @@ El proyecto sigue una arquitectura en capas con Spring Boot:
 - Capa DTOs: transporte de datos hacia y desde la API
 - Capa Mapper: conversión entre entidades y DTOs
 - Capa Exceptions: manejo centralizado de errores
-- Capa Security: interceptor de la clave de Director Técnico (Fase 7)
-- Capa Config: configuración de CORS, archivos estáticos e interceptores
+- Capa Security: login con JWT y autorización por rol (Spring Security)
+- Capa Config: configuración de CORS, archivos estáticos y OpenAPI
 
 ## Tecnologías utilizadas
 
@@ -74,8 +75,8 @@ El proyecto sigue una arquitectura en capas con Spring Boot:
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/model](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/model): entidades
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/dto](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/dto): objetos de transferencia
 - [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/exception](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/exception): manejo centralizado de errores
-- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security): interceptor de la clave de Director Técnico (Fase 7)
-- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config): CORS, archivos estáticos (`/uploads/**`) y registro de interceptores
+- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/security): autenticación JWT, reglas de autorización por rol y sembrado del administrador
+- [mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config](mas-que-amigos/src/main/java/com/marin/mas_que_amigos/config): CORS, archivos estáticos (`/uploads/**`) y documentación OpenAPI
 - [mas-que-amigos/src/main/resources/db/migration](mas-que-amigos/src/main/resources/db/migration): migraciones Flyway del esquema
 
 ## Requisitos
@@ -245,26 +246,54 @@ guarda la foto del jugador en `uploads/jugadores/` y la URL resultante en
 `Jugador.imagenUrl`; reutiliza `app.uploads.dir`/`app.base-url` y el mismo
 `StaticResourceConfig` sin necesitar cambios ahí.
 
-## Autenticación temporal: clave de Director Técnico (Fase 7)
+## Autenticación y roles (login con JWT)
 
-Mientras no exista un login real que distinga roles, `DirectorTecnicoWebConfig`
-registra un interceptor (`DirectorTecnicoInterceptor`) sobre todo `/api/**`:
+El login real reemplazó a la clave temporal de Director Técnico de la Fase 7.
+La API usa Spring Security con tokens JWT de corta vida enviados en el header
+`Authorization: Bearer <token>`.
 
-- Los métodos de solo consulta (`GET`, `HEAD`, `OPTIONS`) pasan libres.
-- Cualquier otro método (`POST`, `PUT`, `DELETE`) exige el header
-  `X-Director-Tecnico-Key` con el valor configurado en
-  `app.director-tecnico.clave`. Si falta o no coincide, responde `401`
-  con el mismo formato de error que el resto de la API
-  (`{"indicadorRespuesta": "...", "mensaje": "..."}`).
-- El valor por defecto en `application.properties` (`director2025`) es
-  solo para desarrollo local. En un despliegue real hay que
-  sobreescribirlo con la variable de entorno `APP_DIRECTOR_TECNICO_CLAVE`,
-  igual que las credenciales de MySQL (`SPRING_DATASOURCE_*`).
+**Endpoints de sesión**
 
-Es una solución intencionalmente temporal (así lo pide el hallazgo de
-Fase 7, "constante intencional"): el reemplazo natural a futuro es un
-login real con roles, dejando este interceptor como base para agregar
-ahí la verificación de sesión/JWT sin tener que tocar cada controlador.
+- `POST /api/auth/login`: usuario y contraseña (el usuario no distingue
+  mayúsculas); devuelve `token`, `tokenType`, `expiresInSeconds` y los datos
+  del usuario. Es público.
+- `POST /api/auth/refresh`: con un token vigente entrega uno nuevo con la
+  vigencia completa. Un token vencido no se puede renovar.
+- `GET /api/auth/me`: devuelve quién es la persona del token.
+- `POST /api/users`, `GET /api/users` y `PUT /api/users/{id}/team`: gestión
+  de cuentas y del equipo de cada DT; solo para `ADMIN`.
+
+**Roles**
+
+| Rol | Qué puede hacer |
+|---|---|
+| Visitante (sin sesión) | Solo consultas (`GET`) |
+| `DT` | Consultas y solicitar traspasos hacia su propio equipo |
+| `ADMIN` | Todo, incluida la gestión de usuarios |
+
+Todo endpoint de escritura nuevo exige `ADMIN` por defecto. Las respuestas de
+acceso denegado mantienen el formato `{"indicadorRespuesta": "...",
+"mensaje": "..."}`: `401` cuando falta, venció o es inválido el token, y `403`
+cuando el rol no alcanza.
+
+**Sesión**: el token dura 3 minutos por defecto. El front lo renueva mientras
+haya actividad del usuario en pantalla; si deja de renovarlo, la sesión se
+cierra sola.
+
+**Configuración (variables de entorno)**
+
+- `APP_SECURITY_JWT_SECRET`: secreto de firma de los tokens, de 32 caracteres
+  o más. Sin valor por defecto: si falta o es corto, la aplicación no arranca.
+- `APP_SECURITY_ADMIN_USERNAME` y `APP_SECURITY_ADMIN_PASSWORD`: cuenta de
+  administrador que se crea al arrancar si no existe. Sin valor por defecto.
+- `APP_SECURITY_JWT_TTL` (opcional): vigencia del token en formato ISO-8601,
+  por defecto `PT3M`.
+
+Los valores reales van solo en el `.env` (que no se sube al repositorio); en
+`.env.example` quedan los marcadores. Las cuentas de DT las crea el
+administrador y no hay auto-registro. El detalle del contrato está en
+`mas-que-amigos/docs/api-spec.yml` y las reglas de seguridad en
+`mas-que-amigos/docs/backend-standards.md`.
 
 ## Estado del proyecto
 
@@ -298,7 +327,8 @@ para cómo levantar la API. En resumen, para probar todo junto:
 - Auditoría completa de 32 hallazgos de `FRONTEND_VISION.md` (Fases 1-7),
   con los 32 en estado Completado: subida de imágenes (escudo y foto de
   jugador), búsqueda parcial, edición de partidos, registros
-  informativos, la clave temporal de Director Técnico, y el estado de
+  informativos, el control de acceso de escrituras (hoy login con JWT y
+  roles, ver "Autenticación y roles"), y el estado de
   partido (PROGRAMADO/EN_CURSO/FINALIZADO) con cambios de jugador y
   minuto en las estadísticas (ver secciones de arriba y
   `DIAGNOSTICO_HALLAZGOS.md` en el repo del frontend)

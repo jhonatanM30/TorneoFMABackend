@@ -29,6 +29,15 @@ services:
       SPRING_DATASOURCE_USERNAME: "${DB_USER:-masqueamigos}"
       SPRING_DATASOURCE_PASSWORD: "${DB_PASSWORD:-desarrollo}"
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: "com.mysql.cj.jdbc.Driver"
+      # Login con JWT (change add-authentication-roles). Las tres son
+      # obligatorias: sin el secreto el backend no arranca, y sin las
+      # credenciales del admin nadie podria iniciar sesion. Los valores reales
+      # viven solo en .env (ver .env.example).
+      APP_SECURITY_JWT_SECRET: "${APP_SECURITY_JWT_SECRET:?Define APP_SECURITY_JWT_SECRET (32+ caracteres) en .env}"
+      APP_SECURITY_ADMIN_USERNAME: "${APP_SECURITY_ADMIN_USERNAME:?Define APP_SECURITY_ADMIN_USERNAME en .env}"
+      APP_SECURITY_ADMIN_PASSWORD: "${APP_SECURITY_ADMIN_PASSWORD:?Define APP_SECURITY_ADMIN_PASSWORD en .env}"
+      # Opcional: vigencia del token en formato ISO-8601 (por defecto 3 minutos).
+      APP_SECURITY_JWT_TTL: "${APP_SECURITY_JWT_TTL:-PT3M}"
     # Permite que el contenedor del backend resuelva "host.docker.internal"
     # y llegue así al MySQL publicado en el host. En Docker Desktop
     # (Windows/Mac) ya funciona sin esto; se agrega para que el mismo
