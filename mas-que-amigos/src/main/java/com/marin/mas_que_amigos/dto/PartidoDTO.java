@@ -63,6 +63,11 @@ public class PartidoDTO {
 
     private String fase;
 
+    // add-tournaments: torneo al que pertenece el partido. Opcional al crear
+    // (si no viene, cae en el torneo "Historico"); al editar se ignora, porque
+    // el torneo de un partido no cambia.
+    private Long idTorneo;
+
     // FRONTEND_VISION.md Fase3-09: solo se completa al responder
     // (PartidoMapper.toDTO); nunca se lee en create/edit - el estado
     // cambia unicamente via PUT /api/partidos/{id}/iniciar y /finalizar.

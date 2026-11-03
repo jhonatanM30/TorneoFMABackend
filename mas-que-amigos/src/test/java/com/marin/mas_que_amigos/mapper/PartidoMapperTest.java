@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.model.Tournament;
 import org.junit.jupiter.api.Test;
 
 class PartidoMapperTest {
@@ -35,6 +36,30 @@ class PartidoMapperTest {
         Partido partido = partidoMapper.toEntity(dto);
 
         assertThat(partido.getFase()).isEqualTo(Partido.Fase.FASE_DE_GRUPOS);
+    }
+
+    @Test
+    void toDTO_incluyeElIdDelTorneoDelPartido() {
+        Tournament torneo = new Tournament();
+        torneo.setId(7L);
+        Partido partido = new Partido();
+        partido.setId(50L);
+        partido.setFase(Partido.Fase.FASE_DE_GRUPOS);
+        partido.setEstado(Partido.Estado.PROGRAMADO);
+        partido.setTorneo(torneo);
+
+        PartidoDTO dto = partidoMapper.toDTO(partido);
+
+        assertThat(dto.getIdTorneo()).isEqualTo(7L);
+    }
+
+    @Test
+    void toEntity_noAsignaElTorneo() {
+        // El torneo lo resuelve PartidoService (Historico por defecto, validaciones).
+        PartidoDTO dto = new PartidoDTO();
+        dto.setIdTorneo(7L);
+
+        assertThat(partidoMapper.toEntity(dto).getTorneo()).isNull();
     }
 
     @Test

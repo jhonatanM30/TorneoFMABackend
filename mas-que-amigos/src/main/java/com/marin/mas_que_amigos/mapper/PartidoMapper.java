@@ -56,6 +56,9 @@ public class PartidoMapper {
         dto.setGolesVisitante(partido.getGolesVisitante());
         dto.setFase(partido.getFase().name());
         dto.setEstado(partido.getEstado().name());
+        if (partido.getTorneo() != null) {
+            dto.setIdTorneo(partido.getTorneo().getId());
+        }
 
         dto.setEquipoLocal(equipoMapper.toDTOExt(partido.getEquipoLocal()));
         dto.setEquipoVisitante(equipoMapper.toDTOExt(partido.getEquipoVisitante()));

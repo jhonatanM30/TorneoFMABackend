@@ -2,6 +2,11 @@ package com.marin.mas_que_amigos.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
@@ -20,6 +25,9 @@ import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.model.Tournament;
+import com.marin.mas_que_amigos.model.TournamentFormat;
+import com.marin.mas_que_amigos.model.TournamentStatus;
 import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
@@ -43,12 +51,14 @@ class PartidoServiceTest {
     private PartidoMapper mapper;
     @Mock
     private ValidationCommonService validacionService;
+    @Mock
+    private TournamentService tournamentService;
 
     private PartidoService partidoService;
 
     @BeforeEach
     void setUp() {
-        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, estadisticasRepository, cambioJugadorRepository, mapper);
+        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, estadisticasRepository, cambioJugadorRepository, mapper, tournamentService);
         ReflectionTestUtils.setField(partidoService, "validacionService", validacionService);
     }
 
@@ -113,5 +123,199 @@ class PartidoServiceTest {
 
         assertThatThrownBy(() -> partidoService.guardar(dto))
                 .isInstanceOf(BusinessException.class);
+    }
+
+    // ------------------------------------------------------------------ torneos (add-tournaments)
+
+    private Equipo equipo(Long id, String nombre) {
+        Equipo equipo = new Equipo();
+        equipo.setId(id);
+        equipo.setNombre(nombre);
+        return equipo;
+    }
+
+    private Tournament torneo(Long id, TournamentFormat formato) {
+        Tournament torneo = new Tournament();
+        torneo.setId(id);
+        torneo.setName("Torneo " + id);
+        torneo.setFormat(formato);
+        torneo.setStatus(TournamentStatus.IN_PROGRESS);
+        return torneo;
+    }
+
+    private PartidoDTO dtoDePartido(Long idLocal, Long idVisitante, Long idTorneo) {
+        PartidoDTO dto = new PartidoDTO();
+        dto.setIdEquipoLocal(idLocal);
+        dto.setIdEquipoVisitante(idVisitante);
+        dto.setFecha(LocalDate.of(2026, 12, 26));
+        dto.setHora(LocalTime.of(15, 0));
+        dto.setIdTorneo(idTorneo);
+        return dto;
+    }
+
+    @Test
+    void guardar_sinIdTorneo_asignaElTorneoQueResuelveElServicioDeTorneos() {
+        PartidoDTO dto = dtoDePartido(1L, 2L, null);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Tournament historico = torneo(1L, TournamentFormat.LEGACY);
+        Partido entidad = new Partido();
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(local));
+        when(equipoRepository.findById(2L)).thenReturn(Optional.of(visitante));
+        when(tournamentService.resolveForNewMatch(null, local, visitante)).thenReturn(historico);
+        when(mapper.toEntity(dto)).thenReturn(entidad);
+        when(partidoRepository.save(entidad)).thenReturn(entidad);
+        when(mapper.toDTO(entidad)).thenReturn(new PartidoDTO());
+
+        partidoService.guardar(dto);
+
+        assertThat(entidad.getTorneo()).isSameAs(historico);
+    }
+
+    @Test
+    void guardar_conIdTorneo_pasaElIdYLosEquiposRealesAlServicioDeTorneos() {
+        PartidoDTO dto = dtoDePartido(1L, 3L, 7L);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo reemplazo = equipo(3L, "Real Madrid");
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Partido entidad = new Partido();
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(local));
+        when(equipoRepository.findById(3L)).thenReturn(Optional.of(reemplazo));
+        when(tournamentService.resolveForNewMatch(7L, local, reemplazo)).thenReturn(copa);
+        when(mapper.toEntity(dto)).thenReturn(entidad);
+        when(partidoRepository.save(entidad)).thenReturn(entidad);
+        when(mapper.toDTO(entidad)).thenReturn(new PartidoDTO());
+
+        partidoService.guardar(dto);
+
+        assertThat(entidad.getTorneo()).isSameAs(copa);
+        assertThat(entidad.getEquipoVisitante()).isSameAs(reemplazo);
+    }
+
+    @Test
+    void guardar_torneoNoValidoParaElPartido_noGuardaNada() {
+        PartidoDTO dto = dtoDePartido(1L, 2L, 7L);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+
+        when(equipoRepository.findById(1L)).thenReturn(Optional.of(local));
+        when(equipoRepository.findById(2L)).thenReturn(Optional.of(visitante));
+        when(tournamentService.resolveForNewMatch(7L, local, visitante))
+                .thenThrow(new BusinessException("El equipo Comark no está inscrito en el torneo."));
+
+        assertThatThrownBy(() -> partidoService.guardar(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no está inscrito");
+
+        verify(partidoRepository, never()).save(any());
+    }
+
+    private Partido partidoExistente(Tournament torneo, Equipo local, Equipo visitante) {
+        Partido existente = new Partido();
+        existente.setId(50L);
+        existente.setEquipoLocal(local);
+        existente.setEquipoVisitante(visitante);
+        existente.setTorneo(torneo);
+        existente.setFase(Partido.Fase.FASE_DE_GRUPOS);
+        existente.setEstado(Partido.Estado.PROGRAMADO);
+        return existente;
+    }
+
+    private void preparaEdicion(Partido existente, PartidoDTO dto, Equipo local, Equipo visitante) {
+        Partido datosNuevos = new Partido();
+        datosNuevos.setFecha(dto.getFecha());
+        datosNuevos.setHora(dto.getHora());
+        datosNuevos.setFase(Partido.Fase.FASE_DE_GRUPOS);
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(existente));
+        when(equipoRepository.findById(local.getId())).thenReturn(Optional.of(local));
+        when(equipoRepository.findById(visitante.getId())).thenReturn(Optional.of(visitante));
+        // lenient: en el caso de "equipo no inscrito" el servicio falla antes de mapear.
+        lenient().when(mapper.toEntity(dto)).thenReturn(datosNuevos);
+    }
+
+    @Test
+    void actualizarPartido_ignoraElIdTorneoDelRequest() {
+        Tournament original = torneo(7L, TournamentFormat.LEAGUE);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Partido existente = partidoExistente(original, local, visitante);
+        PartidoDTO dto = dtoDePartido(1L, 2L, 99L);
+        dto.setId(50L);
+        preparaEdicion(existente, dto, local, visitante);
+        when(partidoRepository.save(existente)).thenReturn(existente);
+        when(mapper.toDTO(existente)).thenReturn(new PartidoDTO());
+
+        partidoService.actualizarPartido(dto);
+
+        assertThat(existente.getTorneo()).isSameAs(original);
+        verify(tournamentService, never()).validateTeamsEnrolled(any(), any(), any());
+    }
+
+    @Test
+    void actualizarPartido_reemplazaUnEquipoPorOtroInscrito_validaLaInscripcion() {
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Equipo reemplazo = equipo(3L, "Real Madrid");
+        Partido existente = partidoExistente(copa, local, visitante);
+        PartidoDTO dto = dtoDePartido(1L, 3L, null);
+        dto.setId(50L);
+        preparaEdicion(existente, dto, local, reemplazo);
+        when(partidoRepository.save(existente)).thenReturn(existente);
+        when(mapper.toDTO(existente)).thenReturn(new PartidoDTO());
+
+        partidoService.actualizarPartido(dto);
+
+        verify(tournamentService).validateTeamsEnrolled(copa, local, reemplazo);
+        assertThat(existente.getEquipoVisitante()).isSameAs(reemplazo);
+    }
+
+    @Test
+    void actualizarPartido_equipoNoInscrito_lanzaBusinessExceptionYNoGuarda() {
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Equipo intruso = equipo(3L, "Real Madrid");
+        Partido existente = partidoExistente(copa, local, visitante);
+        PartidoDTO dto = dtoDePartido(1L, 3L, null);
+        dto.setId(50L);
+        preparaEdicion(existente, dto, local, intruso);
+        doThrow(new BusinessException("El equipo Real Madrid no está inscrito en el torneo."))
+                .when(tournamentService).validateTeamsEnrolled(copa, local, intruso);
+
+        assertThatThrownBy(() -> partidoService.actualizarPartido(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no está inscrito");
+
+        verify(partidoRepository, never()).save(any());
+    }
+
+    @Test
+    void partidoDeTorneo_seIniciaFinalizaYCalculaGolesComoCualquierOtro() {
+        // No existe una bandera de "partido manual": un partido de torneo, creado
+        // a mano, recorre el mismo ciclo y sus goles salen de las estadisticas.
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(3L, "Real Madrid");
+        Partido partido = partidoExistente(copa, local, visitante);
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(alineacionRepository.contarTitularesPorEquipo(50L, 1L)).thenReturn(7L);
+        when(alineacionRepository.contarTitularesPorEquipo(50L, 3L)).thenReturn(7L);
+        when(partidoRepository.save(partido)).thenReturn(partido);
+        when(mapper.toDTO(partido)).thenReturn(new PartidoDTO());
+        when(estadisticasRepository.sumarGolesPorEquipo(50L, 1L)).thenReturn(2);
+        when(estadisticasRepository.sumarGolesPorEquipo(50L, 3L)).thenReturn(1);
+
+        partidoService.iniciarPartido(50L);
+        assertThat(partido.getEstado()).isEqualTo(Partido.Estado.EN_CURSO);
+
+        partidoService.recalcularGoles(50L);
+        assertThat(partido.getGolesLocal()).isEqualTo(2);
+        assertThat(partido.getGolesVisitante()).isEqualTo(1);
+
+        partidoService.finalizarPartido(50L);
+        assertThat(partido.getEstado()).isEqualTo(Partido.Estado.FINALIZADO);
     }
 }
