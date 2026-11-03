@@ -64,6 +64,23 @@ public interface EstadisticaRepository extends JpaRepository<Estadistica, Long>{
             + "ORDER BY SUM(e.goles) DESC")
     List<GoleadorProyeccion> obtenerTotalGolesPorJugador();
 
+    // Tarjetas por equipo en los partidos FINALIZADO de un torneo (juego limpio
+    // de la tabla de liga). Igual que los goles por equipo, el equipo es el
+    // actual del jugador (jugador.equipo).
+    @Query("SELECT e.jugador.equipo.id AS teamId, SUM(e.tarjetasAmarillas) AS yellowCards, "
+            + "SUM(e.tarjetasRojas) AS redCards "
+            + "FROM Estadistica e "
+            + "WHERE e.partido.torneo.id = :tournamentId "
+            + "AND e.partido.estado = com.marin.mas_que_amigos.model.Partido$Estado.FINALIZADO "
+            + "GROUP BY e.jugador.equipo.id")
+    List<TeamCards> sumarTarjetasPorEquipoEnTorneo(@Param("tournamentId") Long tournamentId);
+
+    interface TeamCards {
+        Long getTeamId();
+        Long getYellowCards();
+        Long getRedCards();
+    }
+
     interface GoleadorProyeccion {
         Long getIdJugador();
         String getNombreJugador();

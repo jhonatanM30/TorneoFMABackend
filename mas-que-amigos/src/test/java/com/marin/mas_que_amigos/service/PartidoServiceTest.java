@@ -293,6 +293,42 @@ class PartidoServiceTest {
     }
 
     @Test
+    void actualizarPartido_cambioDeFechaDeUnPartidoGenerado_conservaTorneoYEquipos() {
+        // Un partido del calendario generado es un partido normal: se edita igual.
+        Tournament liga = torneo(7L, TournamentFormat.LEAGUE);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Partido generado = partidoExistente(liga, local, visitante);
+        generado.setFecha(LocalDate.of(2027, 3, 6));
+        PartidoDTO dto = dtoDePartido(1L, 2L, null);
+        dto.setId(50L);
+        dto.setFecha(LocalDate.of(2027, 3, 20));
+        preparaEdicion(generado, dto, local, visitante);
+        when(partidoRepository.save(generado)).thenReturn(generado);
+        when(mapper.toDTO(generado)).thenReturn(new PartidoDTO());
+
+        partidoService.actualizarPartido(dto);
+
+        assertThat(generado.getFecha()).isEqualTo(LocalDate.of(2027, 3, 20));
+        assertThat(generado.getTorneo()).isSameAs(liga);
+        assertThat(generado.getEquipoLocal()).isSameAs(local);
+        assertThat(generado.getEquipoVisitante()).isSameAs(visitante);
+        verify(tournamentService, never()).validateTeamsEnrolled(any(), any(), any());
+    }
+
+    @Test
+    void eliminar_partidoGeneradoProgramado_seEliminaComoCualquierOtro() {
+        Tournament liga = torneo(7L, TournamentFormat.LEAGUE);
+        Partido generado = partidoExistente(liga, equipo(1L, "Macalister"), equipo(2L, "Comark"));
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(generado));
+
+        partidoService.eliminar(50L);
+
+        verify(estadisticasRepository).deleteByPartidoId(50L);
+        verify(partidoRepository).deleteById(50L);
+    }
+
+    @Test
     void partidoDeTorneo_seIniciaFinalizaYCalculaGolesComoCualquierOtro() {
         // No existe una bandera de "partido manual": un partido de torneo, creado
         // a mano, recorre el mismo ciclo y sus goles salen de las estadisticas.

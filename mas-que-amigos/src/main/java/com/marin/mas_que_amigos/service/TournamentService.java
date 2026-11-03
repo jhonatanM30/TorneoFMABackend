@@ -2,6 +2,8 @@ package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.EquipoDTO;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.ScheduleRequestDTO;
+import com.marin.mas_que_amigos.dto.StandingDTO;
 import com.marin.mas_que_amigos.dto.TournamentDTO;
 import com.marin.mas_que_amigos.dto.TournamentRequestDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
@@ -16,11 +18,16 @@ import com.marin.mas_que_amigos.model.TournamentFormat;
 import com.marin.mas_que_amigos.model.TournamentStatus;
 import com.marin.mas_que_amigos.model.TournamentTeam;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
+import com.marin.mas_que_amigos.repository.EstadisticaRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
 import com.marin.mas_que_amigos.repository.TournamentRepository;
 import com.marin.mas_que_amigos.repository.TournamentTeamRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +36,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class TournamentService {
 
     private static final int MINIMUM_TEAMS_TO_START = 2;
+    // Fair play tie-breaker: fewer points are better.
+    private static final int YELLOW_CARD_FAIR_PLAY_POINTS = 1;
+    private static final int RED_CARD_FAIR_PLAY_POINTS = 2;
+
+    private static final int DEFAULT_ROUND_INTERVAL_DAYS = 7;
+
+    private final LeagueStandingsCalculator standingsCalculator = new LeagueStandingsCalculator();
+    private final LeagueScheduleGenerator scheduleGenerator = new LeagueScheduleGenerator();
 
     private final TournamentRepository tournamentRepository;
     private final TournamentTeamRepository tournamentTeamRepository;
@@ -37,11 +52,13 @@ public class TournamentService {
     private final TournamentMapper mapper;
     private final EquipoMapper equipoMapper;
     private final PartidoMapper partidoMapper;
+    private final EstadisticaRepository estadisticaRepository;
 
     public TournamentService(TournamentRepository tournamentRepository,
             TournamentTeamRepository tournamentTeamRepository, EquipoRepository equipoRepository,
             PartidoRepository partidoRepository, TournamentMapper mapper, EquipoMapper equipoMapper,
-            PartidoMapper partidoMapper) {
+            PartidoMapper partidoMapper, EstadisticaRepository estadisticaRepository) {
+        this.estadisticaRepository = estadisticaRepository;
         this.tournamentRepository = tournamentRepository;
         this.tournamentTeamRepository = tournamentTeamRepository;
         this.equipoRepository = equipoRepository;
@@ -217,6 +234,100 @@ public class TournamentService {
             throw tournamentNotFound(tournamentId);
         }
         return partidoRepository.findByTorneoIdOrderByFechaAscHoraAsc(tournamentId).stream()
+                .map(partidoMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * League table, computed on every call from the finished matches of the
+     * tournament (so it always reflects corrected statistics). Every enrolled
+     * team appears, even without matches. Manual matches count like any other.
+     */
+    @Transactional(readOnly = true)
+    public List<StandingDTO> standings(Long tournamentId) {
+        Tournament tournament = tournamentRepository.findById(tournamentId)
+                .orElseThrow(() -> tournamentNotFound(tournamentId));
+        if (tournament.getFormat() != TournamentFormat.LEAGUE) {
+            throw new BusinessException("Este torneo no tiene tabla de posiciones de liga: solo los torneos de formato LEAGUE la tienen.");
+        }
+
+        List<LeagueStandingsCalculator.TeamRef> teams = tournamentTeamRepository.findTeamsByTournamentId(tournamentId).stream()
+                .map(team -> new LeagueStandingsCalculator.TeamRef(team.getId(), team.getNombre()))
+                .collect(Collectors.toList());
+        List<LeagueStandingsCalculator.MatchResult> results = partidoRepository
+                .findByTorneoIdAndEstado(tournamentId, Partido.Estado.FINALIZADO).stream()
+                .map(match -> new LeagueStandingsCalculator.MatchResult(match.getEquipoLocal().getId(),
+                        match.getEquipoVisitante().getId(), match.getGolesLocal(), match.getGolesVisitante()))
+                .collect(Collectors.toList());
+
+        Map<Long, Integer> fairPlayPoints = new HashMap<>();
+        for (EstadisticaRepository.TeamCards cards : estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(tournamentId)) {
+            fairPlayPoints.put(cards.getTeamId(),
+                    (int) (cards.getYellowCards() * YELLOW_CARD_FAIR_PLAY_POINTS + cards.getRedCards() * RED_CARD_FAIR_PLAY_POINTS));
+        }
+
+        return standingsCalculator.calculate(teams, results, fairPlayPoints);
+    }
+
+    /**
+     * Creates the single round-robin calendar of a LEAGUE tournament that is
+     * IN_PROGRESS and has no matches yet: one round per date (start date plus
+     * the interval for each following round), every pair once. All the matches
+     * are created or none: a team that already plays on a round date in any
+     * tournament aborts the whole operation.
+     */
+    @Transactional
+    public List<PartidoDTO> generateSchedule(Long tournamentId, ScheduleRequestDTO request) {
+        Tournament tournament = lockTournament(tournamentId);
+        if (tournament.getFormat() != TournamentFormat.LEAGUE) {
+            throw new BusinessException("Este torneo no tiene calendario automático: solo los torneos de liga lo tienen.");
+        }
+        if (tournament.getStatus() != TournamentStatus.IN_PROGRESS) {
+            throw new BusinessException("El torneo no está en curso: el calendario se genera en un torneo en curso (estado actual: "
+                    + tournament.getStatus() + ").");
+        }
+        List<Equipo> teams = tournamentTeamRepository.findTeamsByTournamentId(tournamentId);
+        if (teams.size() < MINIMUM_TEAMS_TO_START) {
+            throw new BusinessException("Para generar el calendario se necesitan al menos " + MINIMUM_TEAMS_TO_START
+                    + " equipos inscritos (hay " + teams.size() + ").");
+        }
+        if (partidoRepository.countByTorneoId(tournamentId) > 0) {
+            throw new BusinessException("El torneo ya tiene partidos: el calendario solo se genera en un torneo sin partidos.");
+        }
+
+        Map<Long, Equipo> teamsById = new HashMap<>();
+        for (Equipo team : teams) {
+            teamsById.put(team.getId(), team);
+        }
+        int intervalDays = request.getIntervalDays() == null ? DEFAULT_ROUND_INTERVAL_DAYS : request.getIntervalDays();
+        List<List<LeagueScheduleGenerator.Pairing>> rounds = scheduleGenerator.generate(
+                teams.stream().map(Equipo::getId).collect(Collectors.toList()));
+
+        List<Partido> matches = new ArrayList<>();
+        for (int round = 0; round < rounds.size(); round++) {
+            LocalDate date = request.getStartDate().plusDays((long) round * intervalDays);
+            for (LeagueScheduleGenerator.Pairing pairing : rounds.get(round)) {
+                for (Long teamId : new Long[]{pairing.getHomeTeamId(), pairing.getAwayTeamId()}) {
+                    if (partidoRepository.existePartidoEnFechaParaEquipo(date, teamId)) {
+                        throw new BusinessException("El equipo " + teamsById.get(teamId).getNombre() + " ya tiene un partido el "
+                                + date + ": elige otra fecha de inicio o intervalo.");
+                    }
+                }
+                Partido match = new Partido();
+                match.setEquipoLocal(teamsById.get(pairing.getHomeTeamId()));
+                match.setEquipoVisitante(teamsById.get(pairing.getAwayTeamId()));
+                match.setFecha(date);
+                match.setHora(request.getTime());
+                match.setFase(Partido.Fase.FASE_DE_GRUPOS);
+                match.setEstado(Partido.Estado.PROGRAMADO);
+                match.setGolesLocal(0);
+                match.setGolesVisitante(0);
+                match.setTorneo(tournament);
+                matches.add(match);
+            }
+        }
+
+        return partidoRepository.saveAll(matches).stream()
                 .map(partidoMapper::toDTO)
                 .collect(Collectors.toList());
     }

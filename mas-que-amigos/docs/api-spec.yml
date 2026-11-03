@@ -15,6 +15,7 @@ info:
     - Registros informativos (tipo blog) y galería de fotos para la página de Inicio
     - Carga de imágenes (escudo de equipo, foto de jugador, fotos de galería)
     - Torneos con formato definido antes de iniciar (liga, grupos con eliminatoria o eliminatoria directa), inscripción de equipos y partidos armados a mano en cualquier formato
+    - Liga: tabla de posiciones (3-1-0, con desempate por enfrentamiento directo, diferencia de goles, goles a favor y juego limpio) y calendario automático de una vuelta
 
     ## Autenticación y roles
     Hay tres tipos de persona:
@@ -1606,6 +1607,112 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDTO"
 
+  /api/tournaments/{id}/standings:
+    get:
+      summary: Tabla de posiciones de una liga
+      description: |
+        Consulta pública, solo para torneos de formato LEAGUE. Se calcula en cada consulta con los
+        partidos FINALIZADO del torneo (los armados a mano cuentan igual) y no se guarda.
+        Puntuación: victoria 3, empate 1, derrota 0. Si dos o más equipos tienen los mismos puntos,
+        se ordenan por: (1) enfrentamiento directo, con una mini tabla solo de los partidos entre los
+        empatados (puntos, diferencia de goles y goles a favor entre ellos); (2) diferencia de goles
+        total; (3) goles a favor total; (4) menos puntos de juego limpio (amarilla 1, roja 2);
+        (5) nombre del equipo. Incluye a todos los equipos inscritos, aunque no hayan jugado.
+        Las posiciones son únicas y consecutivas.
+      tags: [Torneos]
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Tabla ordenada por posición
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StandingDTO"
+        "400":
+          description: El torneo no es de formato LEAGUE
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/schedule:
+    post:
+      summary: Generar el calendario de una liga
+      description: |
+        Solo ADMIN. Crea los partidos todos contra todos, a una vuelta, de un torneo LEAGUE en curso
+        y sin partidos. Cada jornada tiene su propia fecha: la primera es `startDate` y cada siguiente
+        `intervalDays` días después (7 por defecto, de 1 a 30); todos los partidos usan la misma `time`.
+        Con equipos impares, uno descansa en cada jornada. Los partidos nacen PROGRAMADO con fase
+        FASE_DE_GRUPOS y son partidos normales: se pueden editar, eliminar y combinar con partidos
+        manuales. Es atómico: si un equipo ya tiene un partido (de cualquier torneo) en la fecha de una
+        jornada, no se crea ninguno. La jornada no se guarda: equivale a la fecha del partido.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleRequestDTO"
+      responses:
+        "201":
+          description: Partidos creados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: |
+            Datos inválidos, torneo que no es de liga o no está en curso, menos de 2 equipos, el torneo
+            ya tiene partidos, o un equipo ya juega en la fecha de una jornada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede generar el calendario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
   /api/galeria:
     get:
       summary: Listar fotos de la galería
@@ -2244,6 +2351,57 @@ components:
             Torneo al que pertenece el partido. Opcional al crear (sin él, el partido va al torneo
             Histórico); el torneo debe estar en curso y los dos equipos inscritos en él. Al editar se
             ignora: el torneo de un partido no cambia.
+
+    ScheduleRequestDTO:
+      type: object
+      required: [startDate, time]
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: Fecha de la primera jornada.
+        time:
+          type: string
+          format: partial-time
+          example: "15:00:00"
+          description: Hora de todos los partidos generados.
+        intervalDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+          description: Días entre una jornada y la siguiente.
+
+    StandingDTO:
+      type: object
+      properties:
+        position:
+          type: integer
+          description: Posición única, de 1 a la cantidad de equipos.
+        teamId:
+          type: integer
+          format: int64
+        teamName:
+          type: string
+        played:
+          type: integer
+        won:
+          type: integer
+        drawn:
+          type: integer
+        lost:
+          type: integer
+        goalsFor:
+          type: integer
+        goalsAgainst:
+          type: integer
+        goalDifference:
+          type: integer
+        points:
+          type: integer
+        fairPlayPoints:
+          type: integer
+          description: Amarillas x 1 más rojas x 2 en los partidos finalizados del torneo; menos es mejor.
 
     TournamentFormat:
       type: string
