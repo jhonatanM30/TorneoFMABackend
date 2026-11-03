@@ -14,6 +14,7 @@ info:
     - Cambios de jugador (sustituciones) durante un partido en curso
     - Registros informativos (tipo blog) y galería de fotos para la página de Inicio
     - Carga de imágenes (escudo de equipo, foto de jugador, fotos de galería)
+    - Torneos con formato definido antes de iniciar (liga, grupos con eliminatoria o eliminatoria directa), inscripción de equipos y partidos armados a mano en cualquier formato
 
     ## Autenticación y roles
     Hay tres tipos de persona:
@@ -458,7 +459,12 @@ paths:
                   $ref: "#/components/schemas/PartidoDTO"
     post:
       summary: Crear partido
-      description: Programa un partido entre dos equipos existentes en una fecha disponible.
+      description: |
+        Programa un partido entre dos equipos existentes en una fecha disponible. Con `idTorneo`, el
+        torneo debe estar en curso y ambos equipos inscritos en él; cualquier pareja de equipos
+        inscritos es válida en todos los formatos (así se arma a mano un partido de reemplazo). Un
+        partido armado a mano es un partido normal del torneo y cuenta igual para la puntuación.
+        Sin `idTorneo`, el partido va al torneo Histórico.
       tags: [Partidos]
       requestBody:
         required: true
@@ -1195,6 +1201,411 @@ paths:
                   error:
                     type: string
 
+  /api/tournaments:
+    get:
+      summary: Listar torneos
+      description: Consulta pública. Incluye el torneo protegido "Histórico". Ordenados por nombre.
+      tags: [Torneos]
+      security: []
+      responses:
+        "200":
+          description: Listado de torneos
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TournamentDTO"
+    post:
+      summary: Crear un torneo
+      description: |
+        Solo ADMIN. Crea un torneo en estado DRAFT. El formato es obligatorio y se puede
+        cambiar solo mientras el torneo está en DRAFT.
+      tags: [Torneos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TournamentRequestDTO"
+      responses:
+        "201":
+          description: Torneo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDTO"
+        "400":
+          description: Nombre o formato inválido, o nombre repetido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede crear torneos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      summary: Consultar un torneo
+      tags: [Torneos]
+      security: []
+      responses:
+        "200":
+          description: Torneo encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    put:
+      summary: Editar un torneo
+      description: |
+        Solo ADMIN. Cambia el nombre y el formato mientras el torneo está en DRAFT. Un torneo
+        iniciado o finalizado y el torneo Histórico no se pueden editar.
+      tags: [Torneos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TournamentRequestDTO"
+      responses:
+        "200":
+          description: Torneo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDTO"
+        "400":
+          description: Datos inválidos, nombre repetido, torneo ya iniciado o torneo protegido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede editar torneos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    delete:
+      summary: Eliminar un torneo
+      description: Solo ADMIN. Elimina un torneo en DRAFT junto con sus inscripciones; los equipos no se eliminan.
+      tags: [Torneos]
+      responses:
+        "204":
+          description: Torneo eliminado
+        "400":
+          description: Torneo ya iniciado o protegido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede eliminar torneos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/start:
+    post:
+      summary: Iniciar un torneo
+      description: |
+        Solo ADMIN. Pasa un torneo DRAFT con al menos 2 equipos inscritos a IN_PROGRESS. Desde
+        ahí el formato y las inscripciones quedan bloqueados y se pueden crear partidos.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Torneo iniciado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDTO"
+        "400":
+          description: Menos de 2 equipos, no está en DRAFT o es el torneo Histórico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede iniciar torneos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/finish:
+    post:
+      summary: Finalizar un torneo
+      description: |
+        Solo ADMIN. Pasa un torneo IN_PROGRESS a FINISHED. Todos sus partidos deben estar
+        finalizados; un partido aplazado se juega o se elimina antes.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Torneo finalizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TournamentDTO"
+        "400":
+          description: Partidos pendientes, el torneo no está en curso o es el torneo Histórico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede finalizar torneos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/teams:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+          minimum: 1
+    get:
+      summary: Equipos inscritos en un torneo
+      description: Consulta pública. Ordenados por nombre.
+      tags: [Torneos]
+      security: []
+      responses:
+        "200":
+          description: Equipos inscritos (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EquipoDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    post:
+      summary: Inscribir un equipo en un torneo
+      description: |
+        Solo ADMIN. Solo mientras el torneo está en DRAFT. Un equipo puede estar inscrito en
+        varios torneos a la vez, pero una sola vez en cada uno. El torneo Histórico no usa
+        inscripción.
+      tags: [Torneos]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TournamentTeamRequestDTO"
+      responses:
+        "201":
+          description: Equipo inscrito
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EquipoDTO"
+        "400":
+          description: Equipo inexistente o ya inscrito, torneo ya iniciado o torneo Histórico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede inscribir equipos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/teams/{teamId}:
+    delete:
+      summary: Retirar un equipo de un torneo
+      description: |
+        Solo ADMIN. Solo mientras el torneo está en DRAFT. Quita únicamente la inscripción en
+        este torneo; el equipo no se elimina.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+        - in: path
+          name: teamId
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "204":
+          description: Inscripción retirada
+        "400":
+          description: Torneo ya iniciado o torneo Histórico
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede retirar equipos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe o el equipo no está inscrito en él
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/matches:
+    get:
+      summary: Partidos de un torneo
+      description: |
+        Consulta pública, ordenada por fecha y hora. Para crear un partido de un torneo (también
+        uno armado a mano, por ejemplo A vs C cuando A vs B se aplazó) se usa
+        `POST /api/partidos` con `idTorneo`.
+      tags: [Torneos]
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Partidos del torneo (puede ser una lista vacía)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PartidoDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
   /api/galeria:
     get:
       summary: Listar fotos de la galería
@@ -1826,6 +2237,69 @@ components:
           allOf:
             - $ref: "#/components/schemas/EstadoPartido"
           description: Solo cambia vía PUT /api/partidos/{id}/iniciar y /finalizar
+        idTorneo:
+          type: integer
+          format: int64
+          description: |
+            Torneo al que pertenece el partido. Opcional al crear (sin él, el partido va al torneo
+            Histórico); el torneo debe estar en curso y los dos equipos inscritos en él. Al editar se
+            ignora: el torneo de un partido no cambia.
+
+    TournamentFormat:
+      type: string
+      enum: [LEAGUE, GROUPS_KNOCKOUT, KNOCKOUT, LEGACY]
+      description: |
+        LEAGUE (liga), GROUPS_KNOCKOUT (fase de grupos y eliminatoria) o KNOCKOUT (eliminatoria
+        directa). LEGACY es interno: solo lo tiene el torneo Histórico y no se puede elegir.
+
+    TournamentStatus:
+      type: string
+      enum: [DRAFT, IN_PROGRESS, FINISHED]
+
+    TournamentRequestDTO:
+      type: object
+      required: [name, format]
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          description: Único sin distinguir mayúsculas.
+        format:
+          type: string
+          enum: [LEAGUE, GROUPS_KNOCKOUT, KNOCKOUT]
+
+    TournamentTeamRequestDTO:
+      type: object
+      required: [teamId]
+      properties:
+        teamId:
+          type: integer
+          format: int64
+
+    TournamentDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        format:
+          $ref: "#/components/schemas/TournamentFormat"
+        status:
+          $ref: "#/components/schemas/TournamentStatus"
+        teamCount:
+          type: integer
+          description: Cantidad de equipos inscritos.
+        createdAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Nulo mientras el torneo está en DRAFT.
 
     Fase:
       type: string

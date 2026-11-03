@@ -21,6 +21,9 @@ erDiagram
     EQUIPO ||--o{ PLAYER_TRANSFER : "origen"
     EQUIPO ||--o{ PLAYER_TRANSFER : "destino"
     EQUIPO |o--o| APP_USER : "tiene un DT con cuenta"
+    TOURNAMENT ||--o{ PARTIDO : "agrupa"
+    TOURNAMENT ||--o{ TOURNAMENT_TEAM : "inscribe"
+    EQUIPO ||--o{ TOURNAMENT_TEAM : "participa en"
 ```
 
 ## Descripción de los modelos
@@ -70,6 +73,10 @@ Representa un encuentro entre dos equipos.
 
 **Relaciones:**
 - `equipoLocal`, `equipoVisitante`: muchos a uno con Equipo (ambos obligatorios)
+- `torneo` (`id_torneo`): muchos a uno con Tournament, obligatorio. Todo partido pertenece a un torneo; si al crearlo no se indica, queda en el torneo "Histórico". No cambia durante la vida del partido. La columna lleva el nombre en español porque sigue el idioma de la tabla `partido`
+
+**Notas:**
+- No hay bandera de "partido manual": un partido armado a mano en un torneo es una fila más, con el mismo ciclo de vida y la misma puntuación que cualquier otro.
 
 ### 4. Alineacion (tabla `alineacion`)
 Convocatoria de un jugador a un partido específico, con llave compuesta.
@@ -160,3 +167,37 @@ Cuenta para iniciar sesión. Tabla nueva, por eso va en inglés. La crea un admi
 - El administrador inicial se crea al arrancar con `APP_SECURITY_ADMIN_USERNAME` y `APP_SECURITY_ADMIN_PASSWORD`, solo si no existe ya; nunca se modifica una cuenta existente.
 - El texto `Equipo.directorTecnico` no se sincroniza con la cuenta del DT: lo mantiene el administrador.
 - El equipo del DT se consulta siempre en esta tabla (no en el token de sesión), porque puede asignarse después de iniciar sesión.
+
+### 11. Tournament (tabla `tournament`)
+Competencia con un formato de juego definido antes de iniciar y un conjunto de equipos inscritos. Tabla nueva, por eso va en inglés. Todo partido pertenece a un torneo.
+
+**Campos:**
+- `id`: identificador único
+- `name`: nombre del torneo (3 a 100 caracteres), único sin distinguir mayúsculas
+- `format`: enum `LEAGUE` (liga) | `GROUPS_KNOCKOUT` (fase de grupos y eliminatoria) | `KNOCKOUT` (eliminatoria directa) | `LEGACY`, guardado como texto en BD. `LEGACY` es interno: solo rotula el torneo "Histórico" y no se puede elegir por el API
+- `status`: enum `DRAFT` | `IN_PROGRESS` | `FINISHED`, guardado como texto en BD
+- `createdAt` (`created_at`): fecha y hora de creación
+- `startedAt` (`started_at`): fecha y hora de inicio; nulo mientras está en `DRAFT`
+
+**Reglas:**
+- Ciclo de vida lineal `DRAFT` → `IN_PROGRESS` → `FINISHED`, sin retrocesos.
+- Nombre y formato se pueden cambiar, y el torneo se puede eliminar, solo en `DRAFT`. Al iniciarlo (mínimo 2 equipos inscritos) el formato y las inscripciones quedan bloqueados.
+- Solo un torneo `IN_PROGRESS` admite partidos nuevos. Para finalizarlo, todos sus partidos deben estar `FINALIZADO` (un partido aplazado se juega o se elimina antes).
+- **Torneo "Histórico"**: lo crea la migración `V9` (formato `LEGACY`, estado `IN_PROGRESS`) y recibe todos los partidos que existían antes de los torneos y los que se crean sin indicar torneo. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción de equipos.
+- Las operaciones que cambian el estado o dependen de él leen el torneo con bloqueo pesimista de fila, para que, por ejemplo, un partido no se cree justo cuando el torneo se finaliza.
+
+### 12. TournamentTeam (tabla `tournament_team`)
+Inscripción de un equipo en un torneo. Tabla nueva, en inglés.
+
+**Campos:**
+- `id`: identificador único
+- `enrolledAt` (`enrolled_at`): fecha y hora de la inscripción
+
+**Relaciones:**
+- `tournament` (`tournament_id`): muchos a uno con Tournament, obligatorio
+- `team` (`team_id`): muchos a uno con Equipo, obligatorio
+
+**Reglas:**
+- Restricción única `(tournament_id, team_id)`: un equipo se inscribe una sola vez por torneo, pero puede estar inscrito en varios torneos a la vez.
+- Se agrega o retira solo mientras el torneo está en `DRAFT`. Retirar quita solo la inscripción de ese torneo; el equipo no se elimina.
+- Un equipo inscrito no se puede eliminar (restricción de llave foránea), igual que ya ocurre con los equipos que tienen partidos.

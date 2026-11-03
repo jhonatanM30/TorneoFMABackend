@@ -24,6 +24,9 @@ El proyecto es capaz de:
 - Crear, editar y consultar partidos entre dos equipos (búsqueda parcial
   por equipo), exigiendo 7 titulares por equipo para iniciarlos y
   bloqueando la edición/eliminación de uno ya finalizado
+- Crear torneos con el formato definido antes de iniciar (liga, fase de
+  grupos con eliminatoria o eliminatoria directa), inscribir equipos y armar
+  partidos a mano en cualquier formato (ver sección "Torneos" más abajo)
 - Registrar, editar y quitar alineaciones de jugadores en partidos,
   individualmente o en lote, mientras el partido no haya iniciado
 - Registrar, editar y eliminar estadísticas por jugador y partido (un
@@ -125,11 +128,36 @@ La aplicación queda disponible en:
 - GET /api/partidos
 - GET /api/partidos/{nombre} (coincidencia exacta)
 - GET /api/partidos/buscar?nombre=... (coincidencia parcial por nombre de alguno de los dos equipos; Fase3-04)
-- POST /api/partidos (los goles no se reciben en el payload: `golesLocal`/`golesVisitante` son de solo lectura y se calculan a partir de Estadística; Fase9-01)
+- POST /api/partidos (los goles no se reciben en el payload: `golesLocal`/`golesVisitante` son de solo lectura y se calculan a partir de Estadística; Fase9-01; acepta `idTorneo` opcional: sin él, el partido va al torneo "Histórico")
 - PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada, Fase3-05; rechazada si el partido ya está FINALIZADO, Fase9-01)
 - PUT /api/partidos/{id}/iniciar (pasa el partido de PROGRAMADO a EN_CURSO; exige al menos 7 titulares por equipo, Fase3-09/Fase9-01)
 - PUT /api/partidos/{id}/finalizar (pasa el partido de EN_CURSO a FINALIZADO; Fase3-09)
 - DELETE /api/partidos/{id} (rechazada si el partido ya está FINALIZADO; si se permite, borra en cascada su alineación, estadísticas y cambios de jugador; Fase9-01)
+
+### Torneos
+
+Consulta pública; crear, editar, iniciar, finalizar e inscribir equipos solo con rol `ADMIN`.
+
+- GET /api/tournaments (incluye el torneo protegido "Histórico")
+- GET /api/tournaments/{id}
+- POST /api/tournaments (`{"name": "...", "format": "LEAGUE" | "GROUPS_KNOCKOUT" | "KNOCKOUT"}`; nace en `DRAFT`)
+- PUT /api/tournaments/{id} (nombre y formato, solo mientras está en `DRAFT`)
+- DELETE /api/tournaments/{id} (solo en `DRAFT`; borra sus inscripciones, no los equipos)
+- POST /api/tournaments/{id}/start (necesita al menos 2 equipos inscritos; bloquea formato e inscripciones)
+- POST /api/tournaments/{id}/finish (todos sus partidos deben estar finalizados)
+- GET /api/tournaments/{id}/teams
+- POST /api/tournaments/{id}/teams (`{"teamId": 3}`; solo en `DRAFT`)
+- DELETE /api/tournaments/{id}/teams/{teamId} (solo en `DRAFT`)
+- GET /api/tournaments/{id}/matches
+
+#### Cómo funcionan los torneos
+
+- **Formato**: se elige al crear (`LEAGUE`, `GROUPS_KNOCKOUT` o `KNOCKOUT`), se puede cambiar mientras el torneo está en `DRAFT` y queda bloqueado al iniciarlo.
+- **Ciclo de vida**: `DRAFT` → `IN_PROGRESS` → `FINISHED`, sin retrocesos.
+- **Inscripción**: un equipo puede estar en varios torneos a la vez (por ejemplo, una liga y una copa), pero una sola vez en cada uno.
+- **Partidos manuales**: en un torneo en curso se crea un partido con `POST /api/partidos` y `idTorneo`, entre dos equipos inscritos cualesquiera, en todos los formatos (por ejemplo, A vs C cuando A vs B se aplazó). Un partido manual es un partido normal del torneo y cuenta igual para la puntuación.
+- **Torneo "Histórico"**: agrupa los partidos creados antes de existir los torneos y los que se crean sin `idTorneo`. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción.
+- **Pendiente**: este primer change deja el formato definido y bloqueado, pero la tabla de posiciones y el calendario automático de la liga (change 2) y los grupos con eliminatoria (change 3) aún no existen.
 
 ### Alineaciones
 

@@ -65,7 +65,9 @@ public class PartidoController {
         return partidoService.buscarPartidosPorEquipoParcial(nombre);
     }
 
-    @Operation(summary = "Crear partido", description = "Programa un partido entre dos equipos existentes en una fecha disponible.")
+    @Operation(summary = "Crear partido", description = "Programa un partido entre dos equipos existentes en una fecha disponible. "
+            + "Opcionalmente indica idTorneo: el torneo debe estar en curso y ambos equipos inscritos (cualquier pareja de equipos "
+            + "inscritos sirve, también en un partido armado a mano para reemplazar uno aplazado). Sin idTorneo, el partido va al torneo Histórico.")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Partido creado",
                 content = @Content(schema = @Schema(implementation = PartidoDTO.class))),

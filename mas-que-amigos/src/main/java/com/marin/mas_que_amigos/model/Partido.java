@@ -68,6 +68,12 @@ public class Partido implements Serializable{
     @Column(nullable = false)
     private Estado estado = Estado.PROGRAMADO;
 
+    // Todo partido pertenece a un torneo (V9__tournaments.sql). Si el cliente
+    // no indica uno, PartidoService lo asigna al torneo "Historico".
+    @ManyToOne
+    @JoinColumn(name = "id_torneo", nullable = false)
+    private Tournament torneo;
+
     public enum Fase {
         FASE_DE_GRUPOS, REPECHAJE, ELIMINACION_DIRECTA, FINAL
     }

@@ -41,6 +41,11 @@ public interface PartidoRepository extends JpaRepository<Partido, Long> {
             + "ORDER BY p.fecha ASC, p.hora ASC")
     List<Partido> findPartidosByEquipoNombreParcial(@Param("nombre") String nombre);
 
+    List<Partido> findByTorneoIdOrderByFechaAscHoraAsc(Long torneoId);
+
+    // Partidos de un torneo que aun no terminaron (para poder finalizarlo).
+    long countByTorneoIdAndEstadoNot(Long torneoId, Partido.Estado estado);
+
     @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.fecha = :fecha AND (p.equipoLocal.id = :equipoLocal OR p.equipoVisitante.id = :equipoLocal OR p.equipoLocal.id = :equipoVisitante OR p.equipoVisitante.id = :equipoVisitante)")
     boolean existePartidoEnFechaParaEquipos(@Param("fecha") LocalDate fecha, @Param("equipoLocal") Long equipoLocal, @Param("equipoVisitante") Long equipoVisitante);
 

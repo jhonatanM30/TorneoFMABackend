@@ -11,6 +11,7 @@ import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
+import com.marin.mas_que_amigos.model.Tournament;
 import com.marin.mas_que_amigos.repository.AlineacionRepository;
 import com.marin.mas_que_amigos.repository.CambioJugadorRepository;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
@@ -48,6 +49,9 @@ public class PartidoService {
 
     private final PartidoMapper mapper;
 
+    // add-tournaments: resuelve el torneo del partido y valida inscripcion/estado.
+    private final TournamentService tournamentService;
+
     public List<PartidoDTO> listarPartidos() {
         return partidoRepository.findAll()
                 .stream()
@@ -83,6 +87,9 @@ public class PartidoService {
                 .collect(Collectors.toList());
     }
 
+    // @Transactional: el torneo se lee con bloqueo (TournamentService#resolveForNewMatch)
+    // y el bloqueo debe mantenerse hasta guardar el partido.
+    @Transactional
     public PartidoDTO guardar(PartidoDTO partidoDTO) {
 
         validacionService.validarEquipo(partidoDTO.getIdEquipoLocal());
@@ -105,9 +112,12 @@ public class PartidoService {
         Equipo equipoVisitante = equipoRepository.findById(partidoDTO.getIdEquipoVisitante())
                 .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
 
+        Tournament torneo = tournamentService.resolveForNewMatch(partidoDTO.getIdTorneo(), equipoLocal, equipoVisitante);
+
         Partido partido = mapper.toEntity(partidoDTO);
         partido.setEquipoLocal(equipoLocal);
         partido.setEquipoVisitante(equipoVisitante);
+        partido.setTorneo(torneo);
 
         // Hallazgo post-despliegue (fase9): un partido nace siempre en 0-0;
         // los goles solo se mueven al registrar estadisticas (ver
@@ -166,6 +176,12 @@ public class PartidoService {
                 .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
         Equipo equipoVisitante = equipoRepository.findById(partidoDTO.getIdEquipoVisitante())
                 .orElseThrow(() -> new BusinessException("Fuera de juego! No se ha seleccionado un o unos equipos existentes."));
+
+        // add-tournaments: el torneo de un partido no cambia (se ignora idTorneo
+        // del request), pero los equipos nuevos deben estar inscritos en el.
+        if (cambianLosEquipos) {
+            tournamentService.validateTeamsEnrolled(partidoExistente.getTorneo(), equipoLocal, equipoVisitante);
+        }
 
         // Se reutiliza mapper.toEntity() (en vez de asignar los campos a
         // mano) para no duplicar la conversion String -> Partido.Fase que

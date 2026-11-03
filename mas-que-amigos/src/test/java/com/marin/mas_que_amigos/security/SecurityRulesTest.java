@@ -183,7 +183,14 @@ class SecurityRulesTest {
                 json(post("/api/galeria"), "{}"),
                 json(post("/api/registros-informativos"), "{}"),
                 json(post("/api/transfers/999999/confirm"), "{}"),
-                json(post("/api/transfers/999999/reject"), "{}"));
+                json(post("/api/transfers/999999/reject"), "{}"),
+                json(post("/api/tournaments"), "{}"),
+                json(put("/api/tournaments/999999"), "{}"),
+                delete("/api/tournaments/999999"),
+                post("/api/tournaments/999999/start"),
+                post("/api/tournaments/999999/finish"),
+                json(post("/api/tournaments/999999/teams"), "{}"),
+                delete("/api/tournaments/999999/teams/999999"));
     }
 
     // ---------------------------------------------------------------- visitor
@@ -281,6 +288,36 @@ class SecurityRulesTest {
         mvc.perform(withToken(json(post("/api/transfers"), transferBody(savedOther.getId(), teamB.getId())),
                 dtWithoutTeamToken))
                 .andExpect(status().isCreated());
+    }
+
+    // ---------------------------------------------------------------- tournaments (spec tournaments: permisos)
+
+    @Test
+    void tournaments_areReadablePublicly() throws Exception {
+        assertThat(statusOf(get("/api/tournaments"))).isEqualTo(200);
+        assertThat(statusOf(withToken(get("/api/tournaments"), dtToken))).isEqualTo(200);
+        // Unknown tournament: the read is allowed and the answer is 404, not 401/403.
+        assertThat(statusOf(get("/api/tournaments/999999"))).isEqualTo(404);
+        assertThat(statusOf(get("/api/tournaments/999999/teams"))).isEqualTo(404);
+        assertThat(statusOf(get("/api/tournaments/999999/matches"))).isEqualTo(404);
+    }
+
+    @Test
+    void tournaments_adminCreatesAndDeletesWhileDtAndVisitorCannot() throws Exception {
+        String body = "{\"name\":\"Security Cup " + shortId() + "\",\"format\":\"KNOCKOUT\"}";
+
+        assertThat(statusOf(json(post("/api/tournaments"), body))).isEqualTo(401);
+        assertThat(statusOf(withToken(json(post("/api/tournaments"), body), dtToken))).isEqualTo(403);
+
+        MvcResult created = mvc.perform(withToken(json(post("/api/tournaments"), body), adminToken))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("DRAFT"))
+                .andExpect(jsonPath("$.format").value("KNOCKOUT"))
+                .andReturn();
+        long id = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asLong();
+
+        assertThat(statusOf(withToken(post("/api/tournaments/" + id + "/start"), dtToken))).isEqualTo(403);
+        assertThat(statusOf(withToken(delete("/api/tournaments/" + id), adminToken))).isEqualTo(204);
     }
 
     // ---------------------------------------------------------------- ADMIN
