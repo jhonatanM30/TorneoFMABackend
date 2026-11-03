@@ -1,6 +1,17 @@
-# Prompt para el front: torneos (`add-tournaments`)
+# Prompt para el front: módulo de torneos (changes 1 y 2 en una sola entrega)
 
 > Para la IA que trabaja el repositorio `MasQueAmigos-Torneo` (HTML, CSS y JavaScript planos, sin framework ni build). No hagas commit: deja los cambios en el árbol de trabajo para que el usuario los revise.
+
+> **Estado del documento — no entregar todavía.** Este prompt unifica en una sola implementación del front dos changes del backend. El front se hará una vez, cuando ambos estén listos.
+>
+> | Change | Contenido | Estado |
+> |---|---|---|
+> | 1. `add-tournaments` | Torneos, formato, inscripción de equipos y partidos manuales | Implementado y archivado (la Parte 1 de abajo está completa) |
+> | 2. Liga | Tabla de posiciones y calendario | Sin planificar (la Parte 2 está pendiente) |
+>
+> Al cerrar el change 2, completa la Parte 2 y ajusta lo que cambie en la Parte 1 antes de entregarlo. Este archivo reemplaza al anterior `add-tournaments.md`, que no se ejecutará por separado.
+
+# Parte 1 — Torneos, inscripción y partidos manuales (change 1)
 
 ## Contexto
 
@@ -136,3 +147,16 @@ Muestra siempre el `mensaje` del servidor al usuario; ya viene en español.
 - El torneo "Histórico" no ofrece editar, eliminar, iniciar, finalizar ni inscribir.
 - Finalizar con partidos pendientes muestra el mensaje del servidor; tras jugarlos o eliminarlos, finaliza.
 - El front no ofrece el formato `LEGACY` ni muestra un campo o interruptor de "partido manual".
+
+# Parte 2 — Liga: tabla de posiciones y calendario (change 2) — PENDIENTE
+
+> Esta parte se completa cuando el change 2 esté implementado. No la ejecutes mientras diga "pendiente".
+
+Lo que ya está decidido (a confirmar y detallar al cerrar el change):
+
+- **Tabla de posiciones**: se calcula sobre los partidos finalizados del torneo, sin distinguir cómo se crearon. Los partidos manuales de la Parte 1 **cuentan igual** que cualquier otro.
+- **Puntuación**: victoria 3, empate 1, derrota 0.
+- **Desempate**: diferencia de goles, goles a favor y juego limpio (por tarjetas). El valor de cada tarjeta para el juego limpio aún está por definir.
+- **Calendario**: generación automática de la liga (todos contra todos). Los partidos manuales de la Parte 1 siguen disponibles para reemplazar uno aplazado.
+
+Por completar al cerrar el change 2: endpoints y forma de la tabla, endpoint del calendario, reglas exactas de desempate, cambios en las pantallas de la Parte 1 y criterios de aceptación.
