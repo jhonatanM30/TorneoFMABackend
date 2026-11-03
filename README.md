@@ -149,6 +149,8 @@ Consulta pública; crear, editar, iniciar, finalizar e inscribir equipos solo co
 - POST /api/tournaments/{id}/teams (`{"teamId": 3}`; solo en `DRAFT`)
 - DELETE /api/tournaments/{id}/teams/{teamId} (solo en `DRAFT`)
 - GET /api/tournaments/{id}/matches
+- GET /api/tournaments/{id}/standings (tabla de posiciones; solo torneos `LEAGUE`)
+- POST /api/tournaments/{id}/schedule (solo `ADMIN`; genera el calendario de una vuelta de una liga en curso: `{"startDate": "2027-03-06", "time": "15:00:00", "intervalDays": 7}`)
 
 #### Cómo funcionan los torneos
 
@@ -157,7 +159,9 @@ Consulta pública; crear, editar, iniciar, finalizar e inscribir equipos solo co
 - **Inscripción**: un equipo puede estar en varios torneos a la vez (por ejemplo, una liga y una copa), pero una sola vez en cada uno.
 - **Partidos manuales**: en un torneo en curso se crea un partido con `POST /api/partidos` y `idTorneo`, entre dos equipos inscritos cualesquiera, en todos los formatos (por ejemplo, A vs C cuando A vs B se aplazó). Un partido manual es un partido normal del torneo y cuenta igual para la puntuación.
 - **Torneo "Histórico"**: agrupa los partidos creados antes de existir los torneos y los que se crean sin `idTorneo`. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción.
-- **Pendiente**: este primer change deja el formato definido y bloqueado, pero la tabla de posiciones y el calendario automático de la liga (change 2) y los grupos con eliminatoria (change 3) aún no existen.
+- **Tabla de la liga**: se calcula en cada consulta con los partidos finalizados del torneo (los manuales cuentan igual) y no se guarda. Victoria 3 puntos, empate 1. Desempate, en este orden: enfrentamiento directo (mini tabla solo entre los empatados), diferencia de goles, goles a favor, juego limpio (amarilla 1 y roja 2; menos es mejor) y nombre del equipo. Todos los equipos inscritos aparecen, aunque no hayan jugado.
+- **Calendario de la liga**: una sola vuelta, todos contra todos, una jornada por fecha (`startDate` y luego cada `intervalDays`, 7 por defecto). Con equipos impares, uno descansa en cada jornada. Solo en una liga en curso y sin partidos; es atómico (si un equipo ya juega en alguna fecha, no se crea ninguno). Los partidos generados son partidos normales: se pueden editar, eliminar y combinar con partidos manuales.
+- **Pendiente**: los grupos con eliminatoria y las llaves (`GROUPS_KNOCKOUT` y `KNOCKOUT`, change 3) aún no existen; la tabla y el calendario responden 400 para esos formatos.
 
 ### Alineaciones
 

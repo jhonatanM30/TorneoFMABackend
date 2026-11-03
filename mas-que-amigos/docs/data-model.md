@@ -185,6 +185,7 @@ Competencia con un formato de juego definido antes de iniciar y un conjunto de e
 - Solo un torneo `IN_PROGRESS` admite partidos nuevos. Para finalizarlo, todos sus partidos deben estar `FINALIZADO` (un partido aplazado se juega o se elimina antes).
 - **Torneo "Histórico"**: lo crea la migración `V9` (formato `LEGACY`, estado `IN_PROGRESS`) y recibe todos los partidos que existían antes de los torneos y los que se crean sin indicar torneo. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción de equipos.
 - Las operaciones que cambian el estado o dependen de él leen el torneo con bloqueo pesimista de fila, para que, por ejemplo, un partido no se cree justo cuando el torneo se finaliza.
+- **Liga (`LEAGUE`)**: la tabla de posiciones y la jornada **no se guardan**. La tabla se calcula en cada consulta desde los partidos `FINALIZADO` del torneo (marcador de `partido`) y las tarjetas de `estadistica`; la jornada de un calendario generado equivale a la fecha del partido. No hay tablas ni columnas nuevas para esto. Las tarjetas se atribuyen al equipo actual del jugador (`jugador.equipo`), igual que los goles por equipo, así que un traspaso posterior mueve su historial.
 
 ### 12. TournamentTeam (tabla `tournament_team`)
 Inscripción de un equipo en un torneo. Tabla nueva, en inglés.

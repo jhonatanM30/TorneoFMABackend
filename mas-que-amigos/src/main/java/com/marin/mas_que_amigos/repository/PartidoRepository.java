@@ -43,6 +43,16 @@ public interface PartidoRepository extends JpaRepository<Partido, Long> {
 
     List<Partido> findByTorneoIdOrderByFechaAscHoraAsc(Long torneoId);
 
+    long countByTorneoId(Long torneoId);
+
+    // Igual que existePartidoEnFechaParaEquipos pero para un solo equipo, para
+    // poder nombrar al equipo que choca al generar el calendario de una liga.
+    @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.fecha = :fecha AND (p.equipoLocal.id = :equipo OR p.equipoVisitante.id = :equipo)")
+    boolean existePartidoEnFechaParaEquipo(@Param("fecha") LocalDate fecha, @Param("equipo") Long equipo);
+
+    // Partidos de un torneo en un estado dado (la tabla de liga usa FINALIZADO).
+    List<Partido> findByTorneoIdAndEstado(Long torneoId, Partido.Estado estado);
+
     // Partidos de un torneo que aun no terminaron (para poder finalizarlo).
     long countByTorneoIdAndEstadoNot(Long torneoId, Partido.Estado estado);
 

@@ -1,15 +1,16 @@
-# Prompt para el front: módulo de torneos (changes 1 y 2 en una sola entrega)
+# Prompt para el front: módulo de torneos (3 changes del backend en una sola entrega)
 
 > Para la IA que trabaja el repositorio `MasQueAmigos-Torneo` (HTML, CSS y JavaScript planos, sin framework ni build). No hagas commit: deja los cambios en el árbol de trabajo para que el usuario los revise.
 
-> **Estado del documento — no entregar todavía.** Este prompt unifica en una sola implementación del front dos changes del backend. El front se hará una vez, cuando ambos estén listos.
+> **Estado del documento — no entregar todavía.** Este prompt unifica en una sola implementación del front los tres changes del backend del módulo de torneos. El front se hará una vez, **cuando los tres estén listos**. Si ves este aviso, no ejecutes el prompt.
 >
 > | Change | Contenido | Estado |
 > |---|---|---|
-> | 1. `add-tournaments` | Torneos, formato, inscripción de equipos y partidos manuales | Implementado y archivado (la Parte 1 de abajo está completa) |
-> | 2. Liga | Tabla de posiciones y calendario | Sin planificar (la Parte 2 está pendiente) |
+> | 1. `add-tournaments` | Torneos, formato, inscripción de equipos y partidos manuales | Implementado y archivado (Parte 1 completa) |
+> | 2. `add-league-standings` | Tabla de posiciones y calendario de la liga | Implementado en el backend (Parte 2 completa) |
+> | 3. Grupos y eliminatoria | Grupos, clasificación y llaves | Sin planificar (Parte 3 pendiente) |
 >
-> Al cerrar el change 2, completa la Parte 2 y ajusta lo que cambie en la Parte 1 antes de entregarlo. Este archivo reemplaza al anterior `add-tournaments.md`, que no se ejecutará por separado.
+> Al cerrar el change 3, completa la Parte 3, ajusta lo que cambie en las Partes 1 y 2 y **quita este aviso** antes de entregarlo. Este archivo reemplaza al anterior `add-tournaments.md`, que no se ejecutará por separado.
 
 # Parte 1 — Torneos, inscripción y partidos manuales (change 1)
 
@@ -19,7 +20,7 @@ El backend (`mas-que-amigos`, puerto 57075 por defecto) incorporó **torneos**: 
 
 **No hay cambios incompatibles.** Todo lo que el front hace hoy sigue funcionando: un partido creado sin indicar torneo queda en el torneo protegido "Histórico". Lo nuevo es opcional de adoptar, pero es el objetivo de esta tarea.
 
-Alcance de este primer paso (no lo anticipes en la interfaz): el torneo ya guarda su formato y lo bloquea al iniciar, pero **aún no hay tabla de posiciones, calendario automático, grupos ni llaves**. Esas funciones llegan en dos cambios siguientes del backend. Por ahora, todos los partidos de un torneo los crea el administrador a mano.
+Alcance de la Parte 1: el torneo guarda su formato y lo bloquea al iniciar, y todos los partidos se crean a mano. La tabla de posiciones y el calendario automático de las ligas están en la Parte 2; los grupos y las llaves, en la Parte 3 (pendiente). No muestres nada de eso hasta que su parte esté completa.
 
 ## Lo que debes construir
 
@@ -148,15 +149,95 @@ Muestra siempre el `mensaje` del servidor al usuario; ya viene en español.
 - Finalizar con partidos pendientes muestra el mensaje del servidor; tras jugarlos o eliminarlos, finaliza.
 - El front no ofrece el formato `LEGACY` ni muestra un campo o interruptor de "partido manual".
 
-# Parte 2 — Liga: tabla de posiciones y calendario (change 2) — PENDIENTE
+---
 
-> Esta parte se completa cuando el change 2 esté implementado. No la ejecutes mientras diga "pendiente".
+# Parte 2 — Liga: tabla de posiciones y calendario (change 2)
 
-Lo que ya está decidido (a confirmar y detallar al cerrar el change):
+> Solo aplica a torneos con `format = "LEAGUE"`. Para `GROUPS_KNOCKOUT` y `KNOCKOUT` el servidor responde `400` en estos endpoints (llegan en la Parte 3); no muestres la tabla ni el botón de calendario en esos torneos ni en el "Histórico".
 
-- **Tabla de posiciones**: se calcula sobre los partidos finalizados del torneo, sin distinguir cómo se crearon. Los partidos manuales de la Parte 1 **cuentan igual** que cualquier otro.
-- **Puntuación**: victoria 3, empate 1, derrota 0.
-- **Desempate**: diferencia de goles, goles a favor y juego limpio (por tarjetas). El valor de cada tarjeta para el juego limpio aún está por definir.
-- **Calendario**: generación automática de la liga (todos contra todos). Los partidos manuales de la Parte 1 siguen disponibles para reemplazar uno aplazado.
+## Qué construir
 
-Por completar al cerrar el change 2: endpoints y forma de la tabla, endpoint del calendario, reglas exactas de desempate, cambios en las pantallas de la Parte 1 y criterios de aceptación.
+1. **Tabla de posiciones** en el detalle de un torneo de liga, visible para todos (consulta pública). Columnas: posición, equipo, PJ, G, E, P, GF, GC, DG, Pts y juego limpio. Muéstrala también con el torneo en borrador o recién iniciado: con todos los equipos en 0.
+2. **Botón "Generar calendario"** solo para `ADMIN`, en un torneo de liga en curso que todavía no tiene partidos. Pide fecha de inicio, hora y, opcional, intervalo en días entre jornadas. Después de generarlo, muestra los partidos agrupados por jornada.
+3. **Partidos agrupados por jornada**: el backend no guarda un número de jornada. **Una jornada es una fecha**: todos los partidos con la misma `fecha` son una jornada, y la jornada 1 es la fecha más antigua. Agrupa y numera en el front. Con equipos impares, un equipo descansa en cada jornada; puede mostrarlo como "Descansa: X" deduciéndolo de los equipos inscritos que no juegan esa fecha.
+4. **Los partidos manuales de la Parte 1 siguen disponibles** después de generar el calendario: sirven para reemplazar un partido aplazado (elimina el aplazado con `DELETE /api/partidos/{id}` y crea A vs C con `POST /api/partidos` e `idTorneo`) o para añadir uno extra. Cuentan para la tabla igual que los generados; no los distingas.
+5. Los partidos generados se editan (cambiar fecha u hora) y se eliminan como cualquier otro partido, con las mismas reglas de siempre.
+
+## Contrato del API
+
+### `GET /api/tournaments/{id}/standings` (público)
+
+Arreglo ordenado por posición, con **todos los equipos inscritos** (incluso sin partidos):
+
+```json
+[
+  {
+    "position": 1,
+    "teamId": 1,
+    "teamName": "Macalister",
+    "played": 3,
+    "won": 2,
+    "drawn": 1,
+    "lost": 0,
+    "goalsFor": 3,
+    "goalsAgainst": 0,
+    "goalDifference": 3,
+    "points": 7,
+    "fairPlayPoints": 0
+  }
+]
+```
+
+Reglas (el servidor ya las aplica; no recalcules ni reordenes en el front, solo muestra el orden recibido):
+
+- Cuentan solo los partidos `FINALIZADO` del torneo; los programados y en curso no suman.
+- Victoria 3 puntos, empate 1, derrota 0.
+- Desempate con los mismos puntos, en este orden: enfrentamiento directo, diferencia de goles, goles a favor, juego limpio y nombre. `fairPlayPoints` es amarillas × 1 + rojas × 2: **menos es mejor** y solo se usa para desempatar.
+- Las posiciones son únicas (1 a n), sin empates compartidos.
+- La tabla se calcula en cada consulta: refréscala después de finalizar un partido o de corregir una estadística.
+
+Errores: `400` `{"indicadorRespuesta":"Error","mensaje":"..."}` si el torneo no es de liga; `404` `{"indicadorRespuesta":"Sin Registros","mensaje":"..."}` si no existe.
+
+### `POST /api/tournaments/{id}/schedule` (solo `ADMIN`)
+
+Cuerpo:
+
+```json
+{ "startDate": "2027-03-06", "time": "15:00:00", "intervalDays": 7 }
+```
+
+- `startDate` y `time` son obligatorios; `intervalDays` es opcional (1 a 30, por defecto 7).
+- Respuesta `201`: arreglo con los partidos creados (misma forma que `GET /api/partidos`, con `idTorneo`), todos `PROGRAMADO`.
+- Una sola vuelta: cada pareja de equipos se enfrenta una vez. Cada jornada cae `intervalDays` después de la anterior (la primera en `startDate`) y todos los partidos usan la misma hora.
+- Es todo o nada: si un equipo ya tiene un partido (de cualquier torneo) en la fecha de una jornada, no se crea ninguno y el mensaje nombra al equipo y la fecha; ofrece elegir otra fecha de inicio o intervalo.
+- Solo funciona con el torneo `IN_PROGRESS` y sin partidos (generados ni manuales); si no, responde `400` con el motivo. No se puede generar dos veces.
+
+Errores: `400` regla de negocio `{"indicadorRespuesta":"Error","mensaje":"..."}` (torneo que no es de liga, no está en curso, menos de 2 equipos, ya tiene partidos, equipo ocupado en una fecha); `400` validación mapa campo → mensaje (`startDate`, `time`, `intervalDays`); `401` sin sesión; `403` si el rol no es `ADMIN`; `404` si el torneo no existe. Muestra siempre el `mensaje` del servidor.
+
+## Cambios sobre la Parte 1
+
+- El detalle de un torneo `LEAGUE` suma la pestaña o sección "Tabla" y, para el `ADMIN`, el botón "Generar calendario". Los demás formatos no los muestran.
+- Mientras un torneo de liga en curso no tenga partidos, ofrece "Generar calendario" como camino principal y deja "Crear partido" como alternativa manual.
+- Al finalizar un partido, vuelve a pedir `GET /api/tournaments/{id}/standings`.
+
+## Criterios de aceptación de la Parte 2
+
+- Un visitante, un `DT` y un `ADMIN` ven la tabla de una liga; en un torneo `KNOCKOUT`, `GROUPS_KNOCKOUT` o en el Histórico no aparece.
+- Una liga recién iniciada muestra todos sus equipos en 0, ordenados por nombre.
+- Un `ADMIN` genera el calendario de una liga de 4 equipos: ve 6 partidos en 3 jornadas con fechas separadas por el intervalo, y cada equipo juega una vez por jornada.
+- Con 5 equipos ve 10 partidos en 5 jornadas y un descanso por equipo.
+- Intentar generar de nuevo muestra el mensaje del servidor y no crea partidos.
+- Un choque de fecha con un partido de otro torneo muestra el equipo y la fecha, y no se crea ningún partido.
+- Si un partido generado se aplaza, el `ADMIN` lo elimina, crea un partido manual de reemplazo y, al finalizarlo, la tabla lo cuenta igual que los demás.
+- La tabla respeta el orden recibido del servidor, incluida la posición.
+- Un `DT` y un visitante no ven "Generar calendario".
+
+---
+
+# Parte 3 — Grupos y eliminatoria (change 3) — PENDIENTE
+
+> Esta parte se completa cuando el change 3 esté implementado. No la ejecutes mientras diga "pendiente".
+
+Lo que se sabe hasta ahora: los formatos `GROUPS_KNOCKOUT` (fase de grupos y luego eliminatoria) y `KNOCKOUT` (eliminatoria directa) hoy solo se guardan y se bloquean al iniciar el torneo; la tabla y el calendario de la Parte 2 responden `400` para ellos. El change 3 definirá los grupos, la clasificación, las llaves, el avance de ronda y qué pasa cuando el número de equipos no es potencia de 2.
+
+Por completar al cerrar el change 3: endpoints y formas de respuesta, reglas de clasificación, pantallas de grupos y llaves, cambios sobre las Partes 1 y 2, y criterios de aceptación.

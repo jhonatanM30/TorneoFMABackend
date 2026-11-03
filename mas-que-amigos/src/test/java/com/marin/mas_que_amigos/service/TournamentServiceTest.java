@@ -3,6 +3,7 @@ package com.marin.mas_que_amigos.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -10,6 +11,8 @@ import static org.mockito.Mockito.when;
 
 import com.marin.mas_que_amigos.dto.EquipoDTO;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.ScheduleRequestDTO;
+import com.marin.mas_que_amigos.dto.StandingDTO;
 import com.marin.mas_que_amigos.dto.TournamentDTO;
 import com.marin.mas_que_amigos.dto.TournamentRequestDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
@@ -24,10 +27,13 @@ import com.marin.mas_que_amigos.model.TournamentFormat;
 import com.marin.mas_que_amigos.model.TournamentStatus;
 import com.marin.mas_que_amigos.model.TournamentTeam;
 import com.marin.mas_que_amigos.repository.EquipoRepository;
+import com.marin.mas_que_amigos.repository.EstadisticaRepository;
 import com.marin.mas_que_amigos.repository.PartidoRepository;
 import com.marin.mas_que_amigos.repository.TournamentRepository;
 import com.marin.mas_que_amigos.repository.TournamentTeamRepository;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -56,13 +62,15 @@ class TournamentServiceTest {
     private EquipoMapper equipoMapper;
     @Mock
     private PartidoMapper partidoMapper;
+    @Mock
+    private EstadisticaRepository estadisticaRepository;
 
     private TournamentService service;
 
     @BeforeEach
     void setUp() {
         service = new TournamentService(tournamentRepository, tournamentTeamRepository, equipoRepository,
-                partidoRepository, new TournamentMapper(), equipoMapper, partidoMapper);
+                partidoRepository, new TournamentMapper(), equipoMapper, partidoMapper, estadisticaRepository);
     }
 
     private TournamentRequestDTO request(String name, String format) {
@@ -667,6 +675,277 @@ class TournamentServiceTest {
         when(tournamentRepository.existsById(99L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.findMatches(99L)).isInstanceOf(NotFoundException.class);
+    }
+
+    // ---------------------------------------------------------------- standings (league-standings)
+
+    private Partido finishedMatch(long homeId, long awayId, int homeGoals, int awayGoals) {
+        Partido match = new Partido();
+        match.setEquipoLocal(team(homeId, "T" + homeId));
+        match.setEquipoVisitante(team(awayId, "T" + awayId));
+        match.setGolesLocal(homeGoals);
+        match.setGolesVisitante(awayGoals);
+        match.setEstado(Partido.Estado.FINALIZADO);
+        return match;
+    }
+
+    private EstadisticaRepository.TeamCards cards(long teamId, long yellow, long red) {
+        return new EstadisticaRepository.TeamCards() {
+            @Override
+            public Long getTeamId() {
+                return teamId;
+            }
+
+            @Override
+            public Long getYellowCards() {
+                return yellow;
+            }
+
+            @Override
+            public Long getRedCards() {
+                return red;
+            }
+        };
+    }
+
+    private void leagueWithTeams(TournamentStatus status, Equipo... teams) {
+        Tournament league = tournament(TOURNAMENT_ID, "Liga", TournamentFormat.LEAGUE, status);
+        when(tournamentRepository.findById(TOURNAMENT_ID)).thenReturn(Optional.of(league));
+        when(tournamentTeamRepository.findTeamsByTournamentId(TOURNAMENT_ID)).thenReturn(Arrays.asList(teams));
+    }
+
+    @Test
+    void standings_countsOnlyFinishedMatchesOfTheTournament() {
+        leagueWithTeams(TournamentStatus.IN_PROGRESS, team(1L, "A"), team(2L, "B"), team(3L, "C"));
+        when(partidoRepository.findByTorneoIdAndEstado(TOURNAMENT_ID, Partido.Estado.FINALIZADO))
+                .thenReturn(Arrays.asList(finishedMatch(1, 2, 2, 0), finishedMatch(1, 3, 1, 1)));
+        when(estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(TOURNAMENT_ID)).thenReturn(Collections.emptyList());
+
+        List<StandingDTO> table = service.standings(TOURNAMENT_ID);
+
+        assertThat(table).extracting(StandingDTO::getTeamName).containsExactly("A", "C", "B");
+        assertThat(table).extracting(StandingDTO::getPoints).containsExactly(4, 1, 0);
+        // Programmed and in-progress matches are never requested, so they cannot count.
+        verify(partidoRepository, never()).findByTorneoIdOrderByFechaAscHoraAsc(any());
+    }
+
+    @Test
+    void standings_aManualReplacementMatchCountsLikeAnyOther() {
+        // A vs B was postponed and A vs C was created by hand and finished.
+        leagueWithTeams(TournamentStatus.IN_PROGRESS, team(1L, "A"), team(2L, "B"), team(3L, "C"));
+        when(partidoRepository.findByTorneoIdAndEstado(TOURNAMENT_ID, Partido.Estado.FINALIZADO))
+                .thenReturn(Collections.singletonList(finishedMatch(1, 3, 3, 0)));
+        when(estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(TOURNAMENT_ID)).thenReturn(Collections.emptyList());
+
+        List<StandingDTO> table = service.standings(TOURNAMENT_ID);
+
+        StandingDTO a = table.get(0);
+        assertThat(a.getTeamName()).isEqualTo("A");
+        assertThat(a.getPlayed()).isEqualTo(1);
+        assertThat(a.getPoints()).isEqualTo(3);
+        assertThat(a.getGoalDifference()).isEqualTo(3);
+    }
+
+    @Test
+    void standings_includesEnrolledTeamsWithoutMatches() {
+        leagueWithTeams(TournamentStatus.DRAFT, team(1L, "A"), team(2L, "B"));
+        when(partidoRepository.findByTorneoIdAndEstado(TOURNAMENT_ID, Partido.Estado.FINALIZADO))
+                .thenReturn(Collections.emptyList());
+        when(estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(TOURNAMENT_ID)).thenReturn(Collections.emptyList());
+
+        List<StandingDTO> table = service.standings(TOURNAMENT_ID);
+
+        assertThat(table).extracting(StandingDTO::getTeamName).containsExactly("A", "B");
+        assertThat(table).extracting(StandingDTO::getPlayed).containsOnly(0);
+        assertThat(table).extracting(StandingDTO::getPosition).containsExactly(1, 2);
+    }
+
+    @Test
+    void standings_fairPlayPointsAreYellowTimesOnePlusRedTimesTwo() {
+        leagueWithTeams(TournamentStatus.IN_PROGRESS, team(1L, "A"), team(2L, "B"));
+        when(partidoRepository.findByTorneoIdAndEstado(TOURNAMENT_ID, Partido.Estado.FINALIZADO))
+                .thenReturn(Collections.emptyList());
+        when(estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(TOURNAMENT_ID))
+                .thenReturn(Collections.singletonList(cards(1L, 3, 1)));
+
+        List<StandingDTO> table = service.standings(TOURNAMENT_ID);
+
+        StandingDTO a = table.stream().filter(r -> r.getTeamName().equals("A")).findFirst().get();
+        StandingDTO b = table.stream().filter(r -> r.getTeamName().equals("B")).findFirst().get();
+        assertThat(a.getFairPlayPoints()).isEqualTo(5);
+        assertThat(b.getFairPlayPoints()).isZero();
+    }
+
+    @Test
+    void standings_notALeague_isRejected() {
+        for (TournamentFormat format : Arrays.asList(TournamentFormat.KNOCKOUT, TournamentFormat.GROUPS_KNOCKOUT,
+                TournamentFormat.LEGACY)) {
+            Tournament other = tournament(TOURNAMENT_ID, "Otro", format, TournamentStatus.IN_PROGRESS);
+            when(tournamentRepository.findById(TOURNAMENT_ID)).thenReturn(Optional.of(other));
+
+            assertThatThrownBy(() -> service.standings(TOURNAMENT_ID))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("tabla de posiciones");
+        }
+    }
+
+    @Test
+    void standings_missingTournament_throwsNotFound() {
+        when(tournamentRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.standings(99L)).isInstanceOf(NotFoundException.class);
+    }
+
+    // ---------------------------------------------------------------- generateSchedule (league-schedule)
+
+    private ScheduleRequestDTO scheduleRequest(LocalDate startDate, LocalTime time, Integer intervalDays) {
+        ScheduleRequestDTO request = new ScheduleRequestDTO();
+        request.setStartDate(startDate);
+        request.setTime(time);
+        request.setIntervalDays(intervalDays);
+        return request;
+    }
+
+    private Tournament leagueReadyForSchedule(int teamCount) {
+        Tournament league = lockedTournament(TOURNAMENT_ID, TournamentFormat.LEAGUE, TournamentStatus.IN_PROGRESS);
+        List<Equipo> teams = new java.util.ArrayList<>();
+        for (long id = 1; id <= teamCount; id++) {
+            teams.add(team(id, "Team " + id));
+        }
+        when(tournamentTeamRepository.findTeamsByTournamentId(TOURNAMENT_ID)).thenReturn(teams);
+        return league;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Partido> savedMatches() {
+        ArgumentCaptor<List<Partido>> captor = ArgumentCaptor.forClass(List.class);
+        verify(partidoRepository).saveAll(captor.capture());
+        return captor.getValue();
+    }
+
+    private void saveAllReturnsItsArgument() {
+        when(partidoRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(partidoMapper.toDTO(any(Partido.class))).thenAnswer(invocation -> new PartidoDTO());
+    }
+
+    @Test
+    void generateSchedule_valid_createsEveryPairOnceInRoundsOneIntervalApart() {
+        Tournament league = leagueReadyForSchedule(4);
+        when(partidoRepository.countByTorneoId(TOURNAMENT_ID)).thenReturn(0L);
+        saveAllReturnsItsArgument();
+
+        List<PartidoDTO> result = service.generateSchedule(TOURNAMENT_ID,
+                scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null));
+
+        assertThat(result).hasSize(6);
+        List<Partido> saved = savedMatches();
+        assertThat(saved).hasSize(6);
+        assertThat(saved).extracting(Partido::getFecha).containsOnly(
+                LocalDate.of(2027, 3, 6), LocalDate.of(2027, 3, 13), LocalDate.of(2027, 3, 20));
+        assertThat(saved).extracting(Partido::getHora).containsOnly(LocalTime.of(15, 0));
+        assertThat(saved).extracting(Partido::getEstado).containsOnly(Partido.Estado.PROGRAMADO);
+        assertThat(saved).extracting(Partido::getFase).containsOnly(Partido.Fase.FASE_DE_GRUPOS);
+        assertThat(saved).extracting(Partido::getTorneo).containsOnly(league);
+        assertThat(saved).extracting(Partido::getGolesLocal).containsOnly(0);
+        assertThat(saved).extracting(Partido::getGolesVisitante).containsOnly(0);
+        // Every pair of the 4 teams appears exactly once.
+        java.util.Set<String> pairs = new java.util.HashSet<>();
+        for (Partido match : saved) {
+            long a = match.getEquipoLocal().getId();
+            long b = match.getEquipoVisitante().getId();
+            pairs.add(Math.min(a, b) + "-" + Math.max(a, b));
+        }
+        assertThat(pairs).hasSize(6);
+    }
+
+    @Test
+    void generateSchedule_customInterval_separatesTheRoundsByThoseDays() {
+        leagueReadyForSchedule(4);
+        when(partidoRepository.countByTorneoId(TOURNAMENT_ID)).thenReturn(0L);
+        saveAllReturnsItsArgument();
+
+        service.generateSchedule(TOURNAMENT_ID, scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), 3));
+
+        assertThat(savedMatches()).extracting(Partido::getFecha).containsOnly(
+                LocalDate.of(2027, 3, 6), LocalDate.of(2027, 3, 9), LocalDate.of(2027, 3, 12));
+    }
+
+    @Test
+    void generateSchedule_notALeague_isRejected() {
+        for (TournamentFormat format : Arrays.asList(TournamentFormat.KNOCKOUT, TournamentFormat.GROUPS_KNOCKOUT,
+                TournamentFormat.LEGACY)) {
+            lockedTournament(TOURNAMENT_ID, format, TournamentStatus.IN_PROGRESS);
+
+            assertThatThrownBy(() -> service.generateSchedule(TOURNAMENT_ID,
+                    scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("solo los torneos de liga");
+        }
+        verify(partidoRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void generateSchedule_notInProgress_isRejected() {
+        for (TournamentStatus status : Arrays.asList(TournamentStatus.DRAFT, TournamentStatus.FINISHED)) {
+            lockedTournament(TOURNAMENT_ID, TournamentFormat.LEAGUE, status);
+
+            assertThatThrownBy(() -> service.generateSchedule(TOURNAMENT_ID,
+                    scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("no está en curso");
+        }
+        verify(partidoRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void generateSchedule_tournamentWithMatches_isRejectedAndCreatesNothing() {
+        leagueReadyForSchedule(4);
+        when(partidoRepository.countByTorneoId(TOURNAMENT_ID)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.generateSchedule(TOURNAMENT_ID,
+                scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("ya tiene partidos");
+
+        verify(partidoRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void generateSchedule_fewerThanTwoTeams_isRejected() {
+        leagueReadyForSchedule(1);
+
+        assertThatThrownBy(() -> service.generateSchedule(TOURNAMENT_ID,
+                scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("al menos 2 equipos");
+
+        verify(partidoRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void generateSchedule_missingTournament_throwsNotFound() {
+        when(tournamentRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.generateSchedule(99L,
+                scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    @Test
+    void generateSchedule_teamBusyOnARoundDate_isRejectedNamingTheTeamAndDateWithoutCreatingAnything() {
+        leagueReadyForSchedule(4);
+        when(partidoRepository.countByTorneoId(TOURNAMENT_ID)).thenReturn(0L);
+        // Strict stubs reject calls with other arguments, so the default is stubbed first.
+        lenient().when(partidoRepository.existePartidoEnFechaParaEquipo(any(), any())).thenReturn(false);
+        when(partidoRepository.existePartidoEnFechaParaEquipo(LocalDate.of(2027, 3, 13), 2L)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.generateSchedule(TOURNAMENT_ID,
+                scheduleRequest(LocalDate.of(2027, 3, 6), LocalTime.of(15, 0), null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("Team 2")
+                .hasMessageContaining("2027-03-13");
+
+        verify(partidoRepository, never()).saveAll(any());
     }
 
     // ---------------------------------------------------------------- protected "Histórico"

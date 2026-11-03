@@ -2,6 +2,8 @@ package com.marin.mas_que_amigos.controller;
 
 import com.marin.mas_que_amigos.dto.EquipoDTO;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.ScheduleRequestDTO;
+import com.marin.mas_que_amigos.dto.StandingDTO;
 import com.marin.mas_que_amigos.dto.TournamentDTO;
 import com.marin.mas_que_amigos.dto.TournamentRequestDTO;
 import com.marin.mas_que_amigos.dto.TournamentTeamRequestDTO;
@@ -169,6 +171,44 @@ public class TournamentController {
             @Parameter(description = "Id del equipo") @PathVariable @Min(1) Long teamId) {
         tournamentService.withdrawTeam(id, teamId);
         return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "Generar calendario de liga",
+            description = "Solo ADMIN. Crea los partidos todos contra todos (una vuelta) de un torneo LEAGUE en curso y sin partidos. "
+                    + "Cada jornada tiene su propia fecha: la primera es startDate y cada siguiente intervalDays después (7 por defecto, "
+                    + "de 1 a 30). Con equipos impares, uno descansa en cada jornada. Los partidos nacen PROGRAMADO y son partidos "
+                    + "normales (se pueden editar, eliminar y combinar con partidos manuales). Es atómico: si un equipo ya tiene "
+                    + "partido en alguna fecha, no se crea ninguno.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Partidos creados",
+                content = @Content(schema = @Schema(implementation = PartidoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Datos inválidos, torneo que no es de liga o no está en curso, "
+                + "sin equipos suficientes, ya tiene partidos, o un equipo ya juega en una fecha de jornada", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Sin sesión o sesión vencida", content = @Content),
+        @ApiResponse(responseCode = "403", description = "El usuario no es administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @PostMapping("/{id}/schedule")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<PartidoDTO> generateSchedule(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id,
+            @Valid @RequestBody ScheduleRequestDTO request) {
+        return tournamentService.generateSchedule(id, request);
+    }
+
+    @Operation(summary = "Tabla de posiciones",
+            description = "Consulta pública, solo para torneos LEAGUE. Se calcula en cada consulta con los partidos FINALIZADO del "
+                    + "torneo (los partidos armados a mano cuentan igual): 3 puntos por victoria, 1 por empate. Desempate: enfrentamiento "
+                    + "directo (mini tabla entre los empatados), diferencia de goles, goles a favor, juego limpio (amarilla 1, roja 2; menos "
+                    + "es mejor) y nombre. Incluye a todos los equipos inscritos, aunque no hayan jugado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Tabla ordenada por posición (1..n)",
+                content = @Content(schema = @Schema(implementation = StandingDTO.class))),
+        @ApiResponse(responseCode = "400", description = "El torneo no es de formato LEAGUE", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @GetMapping("/{id}/standings")
+    public List<StandingDTO> standings(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id) {
+        return tournamentService.standings(id);
     }
 
     @Operation(summary = "Partidos del torneo",
