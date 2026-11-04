@@ -82,7 +82,7 @@ El sistema SHALL permitir iniciar un torneo `DRAFT` que tenga al menos 2 equipos
 - **THEN** el sistema responde con estado 400 y un mensaje en español, sin cambiar nada
 
 ### Requirement: Finalización de torneo
-El sistema SHALL permitir finalizar un torneo `IN_PROGRESS` solo si todos sus partidos están finalizados. Al finalizarlo, su estado SHALL pasar a `FINISHED` y ya no SHALL admitir partidos nuevos.
+El sistema SHALL permitir finalizar un torneo `IN_PROGRESS` solo si todos sus partidos están finalizados. Además, un torneo de formato `KNOCKOUT` o `GROUPS_KNOCKOUT` SHALL finalizarse solo cuando sus llaves ya están generadas y la final está finalizada (hay campeón). Al finalizarlo, su estado SHALL pasar a `FINISHED` y ya no SHALL admitir partidos nuevos.
 
 #### Scenario: Finalización válida
 - **WHEN** se finaliza un torneo `IN_PROGRESS` cuyos partidos están todos finalizados
@@ -95,6 +95,14 @@ El sistema SHALL permitir finalizar un torneo `IN_PROGRESS` solo si todos sus pa
 #### Scenario: Torneo que no está en curso
 - **WHEN** se intenta finalizar un torneo `DRAFT` o `FINISHED`
 - **THEN** el sistema responde con estado 400 y un mensaje en español, sin cambiar nada
+
+#### Scenario: Eliminatoria con campeón
+- **WHEN** se finaliza un torneo `KNOCKOUT` o `GROUPS_KNOCKOUT` cuya final está finalizada y cuyos partidos están todos finalizados
+- **THEN** el sistema responde con estado 200 y el torneo en estado `FINISHED`
+
+#### Scenario: Eliminatoria sin campeón definido
+- **WHEN** se intenta finalizar un torneo `KNOCKOUT` o `GROUPS_KNOCKOUT` sin llaves generadas, o con llaves cuya final aún no está finalizada, aunque no queden partidos programados ni en curso
+- **THEN** el sistema responde con estado 400 y un mensaje en español que indica que falta definir al campeón, y el torneo sigue `IN_PROGRESS`
 
 ### Requirement: Torneo Histórico
 El sistema SHALL contar con un torneo llamado "Histórico", de formato interno `LEGACY` y estado `IN_PROGRESS`, que agrupa los partidos creados antes de existir los torneos y los que se creen sin indicar torneo. Este torneo SHALL ser protegido: no se SHALL poder editar, eliminar, iniciar ni finalizar, y no SHALL exigir inscripción de equipos.
