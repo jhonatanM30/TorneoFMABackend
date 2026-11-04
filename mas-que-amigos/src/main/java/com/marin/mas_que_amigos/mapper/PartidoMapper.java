@@ -59,6 +59,8 @@ public class PartidoMapper {
         if (partido.getTorneo() != null) {
             dto.setIdTorneo(partido.getTorneo().getId());
         }
+        dto.setPenalesLocal(partido.getPenalesLocal());
+        dto.setPenalesVisitante(partido.getPenalesVisitante());
 
         dto.setEquipoLocal(equipoMapper.toDTOExt(partido.getEquipoLocal()));
         dto.setEquipoVisitante(equipoMapper.toDTOExt(partido.getEquipoVisitante()));

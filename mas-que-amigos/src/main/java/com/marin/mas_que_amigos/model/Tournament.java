@@ -44,4 +44,8 @@ public class Tournament implements Serializable {
 
     @Column(name = "started_at")
     private LocalDateTime startedAt;
+
+    // GROUPS_KNOCKOUT only: teams that qualify from each group (1 or 2), set when the groups are formed.
+    @Column(name = "qualifiers_per_group")
+    private Integer qualifiersPerGroup;
 }

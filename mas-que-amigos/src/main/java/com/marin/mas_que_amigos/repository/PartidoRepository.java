@@ -8,6 +8,7 @@ package com.marin.mas_que_amigos.repository;
 import com.marin.mas_que_amigos.model.Partido;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -49,6 +50,17 @@ public interface PartidoRepository extends JpaRepository<Partido, Long> {
     // poder nombrar al equipo que choca al generar el calendario de una liga.
     @Query("SELECT COUNT(p) > 0 FROM Partido p WHERE p.fecha = :fecha AND (p.equipoLocal.id = :equipo OR p.equipoVisitante.id = :equipo)")
     boolean existePartidoEnFechaParaEquipo(@Param("fecha") LocalDate fecha, @Param("equipo") Long equipo);
+
+    // Partidos de un torneo por fase y estado (repechaje y fase de grupos).
+    List<Partido> findByTorneoIdAndFase(Long torneoId, Partido.Fase fase);
+
+    List<Partido> findByTorneoIdAndFaseAndEstado(Long torneoId, Partido.Fase fase, Partido.Estado estado);
+
+    long countByTorneoIdAndFaseAndEstadoNot(Long torneoId, Partido.Fase fase, Partido.Estado estado);
+
+    // Fecha del ultimo partido del torneo: las llaves empiezan despues de ella.
+    @Query("SELECT MAX(p.fecha) FROM Partido p WHERE p.torneo.id = :torneoId")
+    Optional<LocalDate> findMaxFechaByTorneoId(@Param("torneoId") Long torneoId);
 
     // Partidos de un torneo en un estado dado (la tabla de liga usa FINALIZADO).
     List<Partido> findByTorneoIdAndEstado(Long torneoId, Partido.Estado estado);

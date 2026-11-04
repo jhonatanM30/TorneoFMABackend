@@ -16,6 +16,7 @@ info:
     - Carga de imágenes (escudo de equipo, foto de jugador, fotos de galería)
     - Torneos con formato definido antes de iniciar (liga, grupos con eliminatoria o eliminatoria directa), inscripción de equipos y partidos armados a mano en cualquier formato
     - Liga: tabla de posiciones (3-1-0, con desempate por enfrentamiento directo, diferencia de goles, goles a favor y juego limpio) y calendario automático de una vuelta
+    - Eliminatoria directa (llaves con sorteo o cruces manuales, repechaje, penales, tercer puesto y avance automático) y fase de grupos con su tabla y la eliminatoria de los clasificados
 
     ## Autenticación y roles
     Hay tres tipos de persona:
@@ -599,7 +600,10 @@ paths:
   /api/partidos/{id}/finalizar:
     put:
       summary: Finalizar partido
-      description: Marca un partido en curso como finalizado.
+      description: |
+        Marca un partido en curso como finalizado. Un partido que exige ganador (partidos de las llaves y de
+        repechaje de un torneo KNOCKOUT) no se puede finalizar empatado: con el marcador igual hay que registrar
+        antes penales distintos. Al finalizar un partido de las llaves, el ganador avanza a la ronda siguiente.
       tags: [Partidos]
       parameters:
         - in: path
@@ -619,6 +623,61 @@ paths:
                 $ref: "#/components/schemas/PartidoDTO"
         "400":
           description: El partido no está en curso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El partido no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/partidos/{id}/penales:
+    put:
+      summary: Registrar penales
+      description: |
+        Solo ADMIN. Registra los penales de un partido **en curso** que exige ganador: los partidos de las
+        llaves y los de fase `REPECHAJE` de un torneo KNOCKOUT. Los penales son enteros >= 0 y distintos
+        (una tanda tiene ganador); solo desempatan un marcador igual y no cambian `golesLocal` ni
+        `golesVisitante`. Un partido que exige ganador no se puede finalizar empatado sin penales distintos.
+      tags: [Partidos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PenaltiesRequestDTO"
+      responses:
+        "200":
+          description: Penales registrados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PartidoDTO"
+        "400":
+          description: Penales inválidos o iguales, el partido no exige ganador o no está en curso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede registrar penales
           content:
             application/json:
               schema:
@@ -1713,6 +1772,201 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponseDTO"
 
+  /api/tournaments/{id}/bracket:
+    get:
+      summary: Llaves de eliminatoria
+      description: |
+        Consulta pública. Las rondas en orden con su nombre (octavos de final, cuartos de final,
+        semifinales, final), cada cruce con sus equipos (vacíos hasta que se conocen), su partido,
+        marcador, penales y ganador, el cruce por el tercer puesto si existe y el campeón cuando la
+        final ya terminó. La fecha y la hora de un cruce son las de su partido en cuanto existe. Sin
+        llaves generadas, la lista de rondas es vacía.
+      tags: [Torneos]
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Llaves del torneo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BracketDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    post:
+      summary: Generar las llaves de eliminatoria
+      description: |
+        Solo ADMIN. Genera las llaves de un torneo KNOCKOUT o GROUPS_KNOCKOUT en curso, una sola vez.
+
+        - **KNOCKOUT**: participan los equipos inscritos que no fueron eliminados en un partido de
+          repechaje (fase `REPECHAJE`, que se arma con `POST /api/partidos`); deben ser una potencia de
+          2 (2, 4, 8...) y no puede haber repechajes sin finalizar. Los cruces de la primera ronda se
+          sortean al azar, o se indican en `pairings` (deben cubrir a todos los participantes una vez).
+        - **GROUPS_KNOCKOUT**: participan los clasificados de los grupos, con todos los partidos de
+          la fase de grupos finalizados. Los cruces siguen la clasificación (primero contra segundo de
+          otro grupo, grupos emparejados de dos en dos) y no se pueden indicar a mano.
+
+        La ronda `r` cae en `startDate + (r - 1) x intervalDays` (7 por defecto, de 1 a 30), a la misma
+        `time`; la final y el tercer puesto el mismo día. La fecha de inicio debe ser posterior a la del
+        último partido del torneo. Solo se crean los partidos de la primera ronda: los demás nacen
+        cuando el ganador avanza, sin verificar choques de fecha. `thirdPlaceMatch` (por defecto true)
+        incluye el partido por el tercer puesto entre los perdedores de las semifinales.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BracketRequestDTO"
+      responses:
+        "201":
+          description: Llaves generadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BracketDTO"
+        "400":
+          description: |
+            Datos inválidos; el torneo no es de eliminatoria o no está en curso; llaves ya generadas;
+            equipos que no son potencia de 2 o repechaje sin finalizar; cruces manuales inválidos;
+            grupos sin formar o sin terminar; fecha de inicio no posterior al último partido; equipo
+            ocupado en la fecha de la primera ronda
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede generar las llaves
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
+  /api/tournaments/{id}/groups:
+    get:
+      summary: Grupos y sus tablas
+      description: |
+        Consulta pública. Cada grupo con sus equipos y su tabla de posiciones, con las reglas de la liga
+        (3-1-0 y el mismo desempate). La tabla de un grupo cuenta solo los partidos de fase de grupos
+        finalizados entre equipos de ese grupo (incluidos los armados a mano) y su juego limpio solo las
+        tarjetas de esos partidos. Lista vacía si el torneo no tiene grupos.
+      tags: [Torneos]
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        "200":
+          description: Grupos del torneo
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+    post:
+      summary: Formar los grupos
+      description: |
+        Solo ADMIN. Forma los grupos de un torneo GROUPS_KNOCKOUT en curso, sin grupos ni partidos. La
+        cantidad de grupos debe ser una potencia de 2 (2, 4, 8...), cada grupo con al menos 2 equipos, y
+        los clasificados por grupo (1 o 2) deben ser menos que los equipos del grupo más pequeño. Los
+        equipos se sortean (grupos A, B, C... con tamaños que difieren como máximo en 1) o se indican en
+        `groups`. Genera el calendario de cada grupo a una vuelta: la jornada `k` de todos los grupos cae
+        el mismo día, con la misma hora. Es atómico: si un equipo ya tiene un partido en la fecha de una
+        jornada, no se crea nada.
+      tags: [Torneos]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupsRequestDTO"
+      responses:
+        "201":
+          description: Grupos formados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupDTO"
+        "400":
+          description: |
+            Datos inválidos; el torneo no tiene fase de grupos o no está en curso; grupos o partidos ya
+            existentes; cantidad de grupos, clasificados o composición inválidos; equipo ocupado en una fecha
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "401":
+          description: Sin sesión o sesión vencida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "403":
+          description: Solo un administrador puede formar los grupos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+        "404":
+          description: El torneo no existe
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseDTO"
+
   /api/galeria:
     get:
       summary: Listar fotos de la galería
@@ -2351,6 +2605,16 @@ components:
             Torneo al que pertenece el partido. Opcional al crear (sin él, el partido va al torneo
             Histórico); el torneo debe estar en curso y los dos equipos inscritos en él. Al editar se
             ignora: el torneo de un partido no cambia.
+        penalesLocal:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Penales del equipo local; solo en partidos que exigen ganador. Se registran con PUT /api/partidos/{id}/penales.
+        penalesVisitante:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Penales del equipo visitante.
 
     ScheduleRequestDTO:
       type: object
@@ -2402,6 +2666,215 @@ components:
         fairPlayPoints:
           type: integer
           description: Amarillas x 1 más rojas x 2 en los partidos finalizados del torneo; menos es mejor.
+
+    PenaltiesRequestDTO:
+      type: object
+      required: [penalesLocal, penalesVisitante]
+      properties:
+        penalesLocal:
+          type: integer
+          minimum: 0
+        penalesVisitante:
+          type: integer
+          minimum: 0
+          description: Debe ser distinto de penalesLocal.
+
+    PairingRequestDTO:
+      type: object
+      required: [homeTeamId, awayTeamId]
+      properties:
+        homeTeamId:
+          type: integer
+          format: int64
+        awayTeamId:
+          type: integer
+          format: int64
+
+    BracketRequestDTO:
+      type: object
+      required: [startDate, time]
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: Fecha de la primera ronda; debe ser posterior a la del último partido del torneo.
+        time:
+          type: string
+          format: partial-time
+          example: "18:00:00"
+          description: Hora de todos los partidos de las llaves.
+        intervalDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+          description: Días entre una ronda y la siguiente.
+        thirdPlaceMatch:
+          type: boolean
+          default: true
+          description: Incluye el partido por el tercer puesto (solo con al menos 4 equipos).
+        pairings:
+          type: array
+          description: |
+            Solo KNOCKOUT. Cruces de la primera ronda en el orden del cuadro (los ganadores de dos cruces
+            consecutivos se enfrentan). Sin esta lista, los cruces se sortean al azar.
+          items:
+            $ref: "#/components/schemas/PairingRequestDTO"
+
+    TeamRefDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+
+    BracketTieDTO:
+      type: object
+      description: Un cruce de las llaves. Los equipos y el partido son nulos hasta que se conocen.
+      properties:
+        id:
+          type: integer
+          format: int64
+        position:
+          type: integer
+          description: Posición del cruce dentro de su ronda, desde 0.
+        homeTeam:
+          allOf:
+            - $ref: "#/components/schemas/TeamRefDTO"
+          nullable: true
+        awayTeam:
+          allOf:
+            - $ref: "#/components/schemas/TeamRefDTO"
+          nullable: true
+        matchId:
+          type: integer
+          format: int64
+          nullable: true
+        matchStatus:
+          type: string
+          nullable: true
+          enum: [PROGRAMADO, EN_CURSO, FINALIZADO]
+        homeGoals:
+          type: integer
+          nullable: true
+        awayGoals:
+          type: integer
+          nullable: true
+        homePenalties:
+          type: integer
+          nullable: true
+        awayPenalties:
+          type: integer
+          nullable: true
+        winnerTeamId:
+          type: integer
+          format: int64
+          nullable: true
+        date:
+          type: string
+          format: date
+          description: Fecha del partido si ya existe; si no, la fecha de la ronda.
+        time:
+          type: string
+          format: partial-time
+
+    BracketRoundDTO:
+      type: object
+      properties:
+        round:
+          type: integer
+          description: Número de ronda desde 1; la última es la final.
+        name:
+          type: string
+          description: Octavos de final, Cuartos de final, Semifinales, Final o "Ronda N".
+        ties:
+          type: array
+          items:
+            $ref: "#/components/schemas/BracketTieDTO"
+
+    BracketDTO:
+      type: object
+      properties:
+        rounds:
+          type: array
+          description: Vacía mientras las llaves no se han generado.
+          items:
+            $ref: "#/components/schemas/BracketRoundDTO"
+        thirdPlace:
+          allOf:
+            - $ref: "#/components/schemas/BracketTieDTO"
+          nullable: true
+        champion:
+          allOf:
+            - $ref: "#/components/schemas/TeamRefDTO"
+          nullable: true
+          description: Nulo hasta que se finaliza la final.
+
+    GroupCompositionDTO:
+      type: object
+      required: [teamIds]
+      properties:
+        teamIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+
+    GroupsRequestDTO:
+      type: object
+      required: [groupCount, qualifiersPerGroup, startDate, time]
+      properties:
+        groupCount:
+          type: integer
+          description: Potencia de 2 (2, 4, 8...).
+        qualifiersPerGroup:
+          type: integer
+          enum: [1, 2]
+          description: Menos que los equipos del grupo más pequeño.
+        startDate:
+          type: string
+          format: date
+          description: Fecha de la primera jornada de todos los grupos.
+        time:
+          type: string
+          format: partial-time
+          example: "15:00:00"
+        intervalDays:
+          type: integer
+          minimum: 1
+          maximum: 30
+          default: 7
+        groups:
+          type: array
+          description: |
+            Composición de cada grupo elegida a mano (todos los inscritos una sola vez; en el orden A, B, C...).
+            Sin esta lista, los equipos se sortean.
+          items:
+            $ref: "#/components/schemas/GroupCompositionDTO"
+
+    GroupDTO:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          description: A, B, C...
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeamRefDTO"
+        qualifiersCount:
+          type: integer
+          description: Equipos que clasifican de este grupo.
+        standings:
+          type: array
+          description: Tabla del grupo, ordenada por posición.
+          items:
+            $ref: "#/components/schemas/StandingDTO"
 
     TournamentFormat:
       type: string

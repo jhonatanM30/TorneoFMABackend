@@ -68,6 +68,16 @@ public class PartidoDTO {
     // el torneo de un partido no cambia.
     private Long idTorneo;
 
+    // add-knockout-and-groups: penales de un partido que exige ganador. Solo se
+    // completan al responder; se registran con PUT /api/partidos/{id}/penales.
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Integer penalesLocal;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    private Integer penalesVisitante;
+
     // FRONTEND_VISION.md Fase3-09: solo se completa al responder
     // (PartidoMapper.toDTO); nunca se lee en create/edit - el estado
     // cambia unicamente via PUT /api/partidos/{id}/iniciar y /finalizar.

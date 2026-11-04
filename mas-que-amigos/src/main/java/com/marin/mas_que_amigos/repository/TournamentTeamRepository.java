@@ -19,6 +19,8 @@ public interface TournamentTeamRepository extends JpaRepository<TournamentTeam, 
 
     long countByTournamentId(Long tournamentId);
 
+    List<TournamentTeam> findByTournamentId(Long tournamentId);
+
     @Query("select tt.team from TournamentTeam tt where tt.tournament.id = :tournamentId order by tt.team.nombre asc")
     List<Equipo> findTeamsByTournamentId(@Param("tournamentId") Long tournamentId);
 

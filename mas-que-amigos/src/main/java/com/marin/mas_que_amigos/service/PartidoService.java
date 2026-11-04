@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.service;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.PenaltiesRequestDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
 import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
@@ -51,6 +52,9 @@ public class PartidoService {
 
     // add-tournaments: resuelve el torneo del partido y valida inscripcion/estado.
     private final TournamentService tournamentService;
+
+    // add-knockout-and-groups: partidos que exigen ganador, avance de las llaves.
+    private final BracketService bracketService;
 
     public List<PartidoDTO> listarPartidos() {
         return partidoRepository.findAll()
@@ -158,6 +162,12 @@ public class PartidoService {
         boolean cambianLosEquipos = !partidoDTO.getIdEquipoLocal().equals(partidoExistente.getEquipoLocal().getId())
                 || !partidoDTO.getIdEquipoVisitante().equals(partidoExistente.getEquipoVisitante().getId());
 
+        // add-knockout-and-groups: un partido de las llaves conserva sus equipos
+        // (fecha y hora si se pueden editar).
+        if (cambianLosEquipos && bracketService.isBracketMatch(partidoExistente.getId())) {
+            throw new BusinessException("Este partido es parte de las llaves del torneo: no se pueden cambiar sus equipos.");
+        }
+
         // No se permite cambiar los equipos de un partido que ya tiene
         // alineaciones registradas: los jugadores alineados pertenecen a los
         // equipos originales, y cambiar los equipos los dejaria "huerfanos"
@@ -237,9 +247,39 @@ public class PartidoService {
         return respuesta;
     }
 
+    // add-knockout-and-groups: registra los penales de un partido en curso que
+    // exige ganador (llaves y repechaje). Solo desempatan un marcador igual: no
+    // tocan golesLocal/golesVisitante, que siguen calculandose desde Estadistica.
+    public PartidoDTO registrarPenales(Long id, PenaltiesRequestDTO request) {
+        Partido partido = partidoRepository.findById(id)
+                .orElseThrow(() -> new NotFoundException("Fuera de juego! El partido al que quieres registrar penales no existe."));
+
+        if (partido.getEstado() != Partido.Estado.EN_CURSO) {
+            throw new BusinessException("Solo se pueden registrar penales en un partido en curso (estado actual: "
+                    + partido.getEstado() + ").");
+        }
+        if (!bracketService.requiresWinner(partido)) {
+            throw new BusinessException("Este partido no usa penales: solo los partidos de las llaves y de repechaje exigen ganador.");
+        }
+        if (request.getHomePenalties().equals(request.getAwayPenalties())) {
+            throw new BusinessException("Los penales no pueden terminar empatados: una tanda de penales tiene ganador.");
+        }
+
+        partido.setPenalesLocal(request.getHomePenalties());
+        partido.setPenalesVisitante(request.getAwayPenalties());
+        Partido actualizado = partidoRepository.save(partido);
+
+        PartidoDTO respuesta = mapper.toDTO(actualizado);
+        respuesta.setMensaje("Penales registrados.");
+        return respuesta;
+    }
+
     // Cierra el partido; a partir de aquí ya no se pueden registrar más
     // cambios de jugador para él (ver CambioJugadorService), y tampoco se
     // podra editar ni eliminar (ver actualizarPartido/eliminar).
+    // @Transactional: el avance de las llaves va en la misma transaccion que el
+    // cambio de estado; si algo falla, no cambia nada.
+    @Transactional
     public PartidoDTO finalizarPartido(Long id) {
         Partido partido = partidoRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Fuera de juego! El partido que deseas finalizar no existe."));
@@ -249,8 +289,13 @@ public class PartidoService {
                     + partido.getEstado() + ").");
         }
 
+        // add-knockout-and-groups: un partido que exige ganador no puede terminar
+        // empatado, y al finalizar uno de las llaves el ganador avanza.
+        bracketService.requireDecided(partido);
+
         partido.setEstado(Partido.Estado.FINALIZADO);
         Partido actualizado = partidoRepository.save(partido);
+        bracketService.onMatchFinished(actualizado);
 
         PartidoDTO respuesta = mapper.toDTO(actualizado);
         respuesta.setMensaje("Partido finalizado.");
@@ -273,6 +318,11 @@ public class PartidoService {
 
         if (partido.getEstado() == Partido.Estado.FINALIZADO) {
             throw new BusinessException("Este partido ya finalizó: no se puede eliminar.");
+        }
+
+        // add-knockout-and-groups: los demas cruces de las llaves dependen de este partido.
+        if (bracketService.isBracketMatch(id)) {
+            throw new BusinessException("Este partido es parte de las llaves del torneo: no se puede eliminar.");
         }
 
         cambioJugadorRepository.deleteByPartidoId(id);

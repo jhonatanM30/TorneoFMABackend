@@ -75,6 +75,18 @@ public interface EstadisticaRepository extends JpaRepository<Estadistica, Long>{
             + "GROUP BY e.jugador.equipo.id")
     List<TeamCards> sumarTarjetasPorEquipoEnTorneo(@Param("tournamentId") Long tournamentId);
 
+    // Igual que la anterior pero solo para los partidos FINALIZADO de una fase
+    // (las tablas de grupo no cuentan las tarjetas de la eliminatoria).
+    @Query("SELECT e.jugador.equipo.id AS teamId, SUM(e.tarjetasAmarillas) AS yellowCards, "
+            + "SUM(e.tarjetasRojas) AS redCards "
+            + "FROM Estadistica e "
+            + "WHERE e.partido.torneo.id = :tournamentId "
+            + "AND e.partido.fase = :fase "
+            + "AND e.partido.estado = com.marin.mas_que_amigos.model.Partido$Estado.FINALIZADO "
+            + "GROUP BY e.jugador.equipo.id")
+    List<TeamCards> sumarTarjetasPorEquipoEnTorneoYFase(@Param("tournamentId") Long tournamentId,
+            @Param("fase") com.marin.mas_que_amigos.model.Partido.Fase fase);
+
     interface TeamCards {
         Long getTeamId();
         Long getYellowCards();

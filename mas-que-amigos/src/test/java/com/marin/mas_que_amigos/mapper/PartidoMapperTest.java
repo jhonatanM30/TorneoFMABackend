@@ -54,6 +54,34 @@ class PartidoMapperTest {
     }
 
     @Test
+    void toDTO_incluyeLosPenalesCuandoExisten() {
+        Partido partido = new Partido();
+        partido.setId(50L);
+        partido.setFase(Partido.Fase.FINAL);
+        partido.setEstado(Partido.Estado.EN_CURSO);
+        partido.setPenalesLocal(5);
+        partido.setPenalesVisitante(4);
+
+        PartidoDTO dto = partidoMapper.toDTO(partido);
+
+        assertThat(dto.getPenalesLocal()).isEqualTo(5);
+        assertThat(dto.getPenalesVisitante()).isEqualTo(4);
+    }
+
+    @Test
+    void toDTO_sinPenalesLosDejaNulos() {
+        Partido partido = new Partido();
+        partido.setId(50L);
+        partido.setFase(Partido.Fase.FASE_DE_GRUPOS);
+        partido.setEstado(Partido.Estado.PROGRAMADO);
+
+        PartidoDTO dto = partidoMapper.toDTO(partido);
+
+        assertThat(dto.getPenalesLocal()).isNull();
+        assertThat(dto.getPenalesVisitante()).isNull();
+    }
+
+    @Test
     void toEntity_noAsignaElTorneo() {
         // El torneo lo resuelve PartidoService (Historico por defecto, validaciones).
         PartidoDTO dto = new PartidoDTO();
