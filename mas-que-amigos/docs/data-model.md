@@ -24,6 +24,10 @@ erDiagram
     TOURNAMENT ||--o{ PARTIDO : "agrupa"
     TOURNAMENT ||--o{ TOURNAMENT_TEAM : "inscribe"
     EQUIPO ||--o{ TOURNAMENT_TEAM : "participa en"
+    TOURNAMENT ||--o{ TOURNAMENT_GROUP : "forma"
+    TOURNAMENT_GROUP ||--o{ TOURNAMENT_TEAM : "agrupa"
+    TOURNAMENT ||--o{ BRACKET_TIE : "tiene cruces"
+    BRACKET_TIE |o--o| PARTIDO : "se juega en"
 ```
 
 ## Descripción de los modelos
@@ -70,6 +74,8 @@ Representa un encuentro entre dos equipos.
 - `golesLocal` (`goles_local`), `golesVisitante` (`goles_visitante`): marcador, derivado de los goles registrados en Estadística
 - `fase`: enum `FASE_DE_GRUPOS` | `REPECHAJE` | `ELIMINACION_DIRECTA` | `FINAL`
 - `estado`: enum `PROGRAMADO` | `EN_CURSO` | `FINALIZADO` (por defecto `PROGRAMADO`; solo cambia vía `PartidoService#iniciarPartido`/`#finalizarPartido`, nunca por edición directa)
+
+- `penalesLocal` (`penales_local`), `penalesVisitante` (`penales_visitante`): penales de cada equipo, opcionales. Solo se registran en un partido en curso que exige ganador (partidos de las llaves y de fase `REPECHAJE` de un torneo `KNOCKOUT`), deben ser distintos y solo desempatan un marcador igual: no cambian `golesLocal` ni `golesVisitante`
 
 **Relaciones:**
 - `equipoLocal`, `equipoVisitante`: muchos a uno con Equipo (ambos obligatorios)
@@ -178,6 +184,7 @@ Competencia con un formato de juego definido antes de iniciar y un conjunto de e
 - `status`: enum `DRAFT` | `IN_PROGRESS` | `FINISHED`, guardado como texto en BD
 - `createdAt` (`created_at`): fecha y hora de creación
 - `startedAt` (`started_at`): fecha y hora de inicio; nulo mientras está en `DRAFT`
+- `qualifiersPerGroup` (`qualifiers_per_group`): solo `GROUPS_KNOCKOUT`; equipos que clasifican de cada grupo (1 o 2), se define al formar los grupos; nulo en los demás casos
 
 **Reglas:**
 - Ciclo de vida lineal `DRAFT` → `IN_PROGRESS` → `FINISHED`, sin retrocesos.
@@ -186,6 +193,10 @@ Competencia con un formato de juego definido antes de iniciar y un conjunto de e
 - **Torneo "Histórico"**: lo crea la migración `V9` (formato `LEGACY`, estado `IN_PROGRESS`) y recibe todos los partidos que existían antes de los torneos y los que se crean sin indicar torneo. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción de equipos.
 - Las operaciones que cambian el estado o dependen de él leen el torneo con bloqueo pesimista de fila, para que, por ejemplo, un partido no se cree justo cuando el torneo se finaliza.
 - **Liga (`LEAGUE`)**: la tabla de posiciones y la jornada **no se guardan**. La tabla se calcula en cada consulta desde los partidos `FINALIZADO` del torneo (marcador de `partido`) y las tarjetas de `estadistica`; la jornada de un calendario generado equivale a la fecha del partido. No hay tablas ni columnas nuevas para esto. Las tarjetas se atribuyen al equipo actual del jugador (`jugador.equipo`), igual que los goles por equipo, así que un traspaso posterior mueve su historial.
+
+- **Eliminatoria (`KNOCKOUT`)**: si los equipos no son potencia de 2, el administrador arma partidos de fase `REPECHAJE`; el perdedor de uno finalizado queda eliminado (se calcula al generar las llaves, no se guarda). Las llaves se generan una sola vez (ver `BracketTie`).
+- **Fase de grupos (`GROUPS_KNOCKOUT`)**: los grupos se forman una sola vez (ver `TournamentGroup`) y la tabla de cada grupo se calcula en cada consulta, con las reglas de la liga, solo con los partidos `FASE_DE_GRUPOS` finalizados entre equipos del grupo.
+- **Finalizar** un torneo `KNOCKOUT` o `GROUPS_KNOCKOUT` exige además que las llaves existan y la final esté finalizada (hay campeón).
 
 ### 12. TournamentTeam (tabla `tournament_team`)
 Inscripción de un equipo en un torneo. Tabla nueva, en inglés.
@@ -197,8 +208,47 @@ Inscripción de un equipo en un torneo. Tabla nueva, en inglés.
 **Relaciones:**
 - `tournament` (`tournament_id`): muchos a uno con Tournament, obligatorio
 - `team` (`team_id`): muchos a uno con Equipo, obligatorio
+- `group` (`group_id`): muchos a uno con TournamentGroup, opcional; solo se llena al formar los grupos de un torneo `GROUPS_KNOCKOUT`
 
 **Reglas:**
 - Restricción única `(tournament_id, team_id)`: un equipo se inscribe una sola vez por torneo, pero puede estar inscrito en varios torneos a la vez.
 - Se agrega o retira solo mientras el torneo está en `DRAFT`. Retirar quita solo la inscripción de ese torneo; el equipo no se elimina.
 - Un equipo inscrito no se puede eliminar (restricción de llave foránea), igual que ya ocurre con los equipos que tienen partidos.
+
+### 13. TournamentGroup (tabla `tournament_group`)
+Grupo de la fase de grupos de un torneo `GROUPS_KNOCKOUT` (A, B, C...). Tabla nueva, en inglés.
+
+**Campos:**
+- `id`: identificador único
+- `name`: nombre del grupo (`A`, `B`, ...), único dentro del torneo
+
+**Relaciones:**
+- `tournament` (`tournament_id`): muchos a uno con Tournament, obligatorio
+- Sus equipos son las inscripciones (`tournament_team`) cuyo `group_id` apunta al grupo.
+
+**Reglas:**
+- La cantidad de grupos es una potencia de 2 (2, 4, 8...), cada grupo tiene al menos 2 equipos y los tamaños difieren como máximo en 1. Los clasificados por grupo (`tournament.qualifiers_per_group`, 1 o 2) son menos que los equipos del grupo más pequeño.
+- Al formar los grupos se genera el calendario de cada uno a una vuelta (`partido` con fase `FASE_DE_GRUPOS`), con la jornada `k` de todos los grupos en la misma fecha.
+
+### 14. BracketTie (tabla `bracket_tie`)
+Un cruce de las llaves de eliminatoria. Tabla nueva, en inglés. El partido se crea cuando se conocen los dos equipos.
+
+**Campos:**
+- `id`: identificador único
+- `kind`: enum `MAIN` (cruces hasta la final) | `THIRD_PLACE` (partido por el tercer puesto), guardado como texto
+- `roundNumber` (`round_number`): ronda desde 1; la última es la final
+- `positionInRound` (`position_in_round`): posición dentro de la ronda desde 0; único con `(tournament_id, kind, round_number)`
+- `winnerNextIsHome` (`winner_next_is_home`), `loserNextIsHome` (`loser_next_is_home`): lado que ocupa el ganador (o el perdedor) en el cruce siguiente
+- `scheduledDate` (`scheduled_date`), `scheduledTime` (`scheduled_time`): fecha y hora de su ronda, fijadas al generar las llaves
+
+**Relaciones:**
+- `tournament` (`tournament_id`): muchos a uno con Tournament, obligatorio
+- `homeTeam` (`home_team_id`), `awayTeam` (`away_team_id`), `winnerTeam` (`winner_team_id`): muchos a uno con Equipo, nulos hasta que se conocen
+- `match` (`match_id`): uno a uno opcional con Partido; nulo hasta que se conocen los dos equipos
+- `winnerNext` (`winner_next_tie_id`), `loserNext` (`loser_next_tie_id`): enlaces al cruce siguiente del ganador y, solo desde las semifinales, del perdedor (hacia el tercer puesto)
+
+**Reglas:**
+- Los ganadores de los cruces `2k` y `2k + 1` de una ronda se enfrentan en el cruce `k` de la siguiente (el primero como local).
+- Al finalizar el partido de un cruce, el ganador (más goles o, con el marcador igual, más penales) ocupa su lugar en el siguiente y, si ya están los dos equipos, se crea ese partido con la fecha y la hora de su ronda (fase `FINAL` para la final, `ELIMINACION_DIRECTA` para los demás). Estos partidos no verifican choques de fecha; el administrador puede editar la fecha.
+- Un partido enlazado a un cruce no se elimina ni cambia de equipos; su fecha y hora sí se pueden editar.
+- Con grupos, los cruces de la primera ronda salen de la clasificación: con 2 clasificados por grupo, `1.º X vs 2.º Y` de cada pareja de grupos y luego `1.º Y vs 2.º X`, de modo que los equipos de un mismo grupo queden en mitades opuestas.

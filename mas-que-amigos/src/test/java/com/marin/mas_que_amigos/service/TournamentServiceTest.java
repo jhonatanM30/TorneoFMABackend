@@ -64,13 +64,16 @@ class TournamentServiceTest {
     private PartidoMapper partidoMapper;
     @Mock
     private EstadisticaRepository estadisticaRepository;
+    @Mock
+    private BracketService bracketService;
 
     private TournamentService service;
 
     @BeforeEach
     void setUp() {
         service = new TournamentService(tournamentRepository, tournamentTeamRepository, equipoRepository,
-                partidoRepository, new TournamentMapper(), equipoMapper, partidoMapper, estadisticaRepository);
+                partidoRepository, new TournamentMapper(), equipoMapper, partidoMapper, estadisticaRepository,
+                new MatchDateConflicts(partidoRepository), bracketService);
     }
 
     private TournamentRequestDTO request(String name, String format) {
@@ -548,6 +551,45 @@ class TournamentServiceTest {
 
         assertThat(inProgress.getStatus()).isEqualTo(TournamentStatus.IN_PROGRESS);
         verify(tournamentRepository, never()).save(any());
+    }
+
+    @Test
+    void finish_checksTheChampionOfTheBracketAfterThePendingMatches() {
+        Tournament inProgress = lockedTournament(TOURNAMENT_ID, TournamentFormat.KNOCKOUT, TournamentStatus.IN_PROGRESS);
+        when(partidoRepository.countByTorneoIdAndEstadoNot(TOURNAMENT_ID, Partido.Estado.FINALIZADO)).thenReturn(0L);
+        saveReturnsArgumentWithId();
+
+        TournamentDTO result = service.finish(TOURNAMENT_ID);
+
+        assertThat(result.getStatus()).isEqualTo(TournamentStatus.FINISHED);
+        verify(bracketService).requireChampion(inProgress);
+    }
+
+    @Test
+    void finish_aBracketTournamentWithoutChampion_isRejectedEvenWithNoPendingMatches() {
+        Tournament inProgress = lockedTournament(TOURNAMENT_ID, TournamentFormat.GROUPS_KNOCKOUT, TournamentStatus.IN_PROGRESS);
+        when(partidoRepository.countByTorneoIdAndEstadoNot(TOURNAMENT_ID, Partido.Estado.FINALIZADO)).thenReturn(0L);
+        org.mockito.Mockito.doThrow(new BusinessException("Falta definir al campeón: genera las llaves y finaliza la final."))
+                .when(bracketService).requireChampion(inProgress);
+
+        assertThatThrownBy(() -> service.finish(TOURNAMENT_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("campeón");
+
+        assertThat(inProgress.getStatus()).isEqualTo(TournamentStatus.IN_PROGRESS);
+        verify(tournamentRepository, never()).save(any());
+    }
+
+    @Test
+    void finish_withPendingMatches_reportsThemBeforeLookingForTheChampion() {
+        lockedTournament(TOURNAMENT_ID, TournamentFormat.KNOCKOUT, TournamentStatus.IN_PROGRESS);
+        when(partidoRepository.countByTorneoIdAndEstadoNot(TOURNAMENT_ID, Partido.Estado.FINALIZADO)).thenReturn(2L);
+
+        assertThatThrownBy(() -> service.finish(TOURNAMENT_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("2 partido(s)");
+
+        verify(bracketService, never()).requireChampion(any());
     }
 
     @Test

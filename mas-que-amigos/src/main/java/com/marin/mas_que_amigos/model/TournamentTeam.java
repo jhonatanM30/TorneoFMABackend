@@ -39,4 +39,9 @@ public class TournamentTeam implements Serializable {
 
     @Column(name = "enrolled_at", nullable = false)
     private LocalDateTime enrolledAt;
+
+    // GROUPS_KNOCKOUT only: the group of the team once the groups are formed.
+    @ManyToOne
+    @JoinColumn(name = "group_id")
+    private TournamentGroup group;
 }

@@ -132,6 +132,7 @@ La aplicación queda disponible en:
 - PUT /api/partidos (edición; no permite cambiar los equipos de un partido que ya tiene alineación registrada, Fase3-05; rechazada si el partido ya está FINALIZADO, Fase9-01)
 - PUT /api/partidos/{id}/iniciar (pasa el partido de PROGRAMADO a EN_CURSO; exige al menos 7 titulares por equipo, Fase3-09/Fase9-01)
 - PUT /api/partidos/{id}/finalizar (pasa el partido de EN_CURSO a FINALIZADO; Fase3-09)
+- PUT /api/partidos/{id}/penales (solo `ADMIN`; `{"penalesLocal": 5, "penalesVisitante": 4}`; para partidos en curso que exigen ganador: los de las llaves y los de repechaje de un `KNOCKOUT`; un partido de ese tipo no se finaliza empatado sin penales distintos)
 - DELETE /api/partidos/{id} (rechazada si el partido ya está FINALIZADO; si se permite, borra en cascada su alineación, estadísticas y cambios de jugador; Fase9-01)
 
 ### Torneos
@@ -150,6 +151,10 @@ Consulta pública; crear, editar, iniciar, finalizar e inscribir equipos solo co
 - DELETE /api/tournaments/{id}/teams/{teamId} (solo en `DRAFT`)
 - GET /api/tournaments/{id}/matches
 - GET /api/tournaments/{id}/standings (tabla de posiciones; solo torneos `LEAGUE`)
+- POST /api/tournaments/{id}/bracket (solo `ADMIN`; genera las llaves de `KNOCKOUT` o `GROUPS_KNOCKOUT`: `{"startDate": "2027-05-01", "time": "18:00:00", "intervalDays": 7, "thirdPlaceMatch": true, "pairings": [...]}`; `pairings` es opcional y solo para `KNOCKOUT`)
+- GET /api/tournaments/{id}/bracket (llaves, avance y campeón)
+- POST /api/tournaments/{id}/groups (solo `ADMIN`; forma los grupos de un `GROUPS_KNOCKOUT`: `{"groupCount": 2, "qualifiersPerGroup": 2, "startDate": "2027-02-06", "time": "15:00:00", "groups": [...]}`; `groups` es opcional)
+- GET /api/tournaments/{id}/groups (cada grupo con su tabla)
 - POST /api/tournaments/{id}/schedule (solo `ADMIN`; genera el calendario de una vuelta de una liga en curso: `{"startDate": "2027-03-06", "time": "15:00:00", "intervalDays": 7}`)
 
 #### Cómo funcionan los torneos
@@ -161,7 +166,10 @@ Consulta pública; crear, editar, iniciar, finalizar e inscribir equipos solo co
 - **Torneo "Histórico"**: agrupa los partidos creados antes de existir los torneos y los que se crean sin `idTorneo`. Está protegido (no se edita, elimina, inicia ni finaliza) y no usa inscripción.
 - **Tabla de la liga**: se calcula en cada consulta con los partidos finalizados del torneo (los manuales cuentan igual) y no se guarda. Victoria 3 puntos, empate 1. Desempate, en este orden: enfrentamiento directo (mini tabla solo entre los empatados), diferencia de goles, goles a favor, juego limpio (amarilla 1 y roja 2; menos es mejor) y nombre del equipo. Todos los equipos inscritos aparecen, aunque no hayan jugado.
 - **Calendario de la liga**: una sola vuelta, todos contra todos, una jornada por fecha (`startDate` y luego cada `intervalDays`, 7 por defecto). Con equipos impares, uno descansa en cada jornada. Solo en una liga en curso y sin partidos; es atómico (si un equipo ya juega en alguna fecha, no se crea ninguno). Los partidos generados son partidos normales: se pueden editar, eliminar y combinar con partidos manuales.
-- **Pendiente**: los grupos con eliminatoria y las llaves (`GROUPS_KNOCKOUT` y `KNOCKOUT`, change 3) aún no existen; la tabla y el calendario responden 400 para esos formatos.
+- **Eliminatoria directa (`KNOCKOUT`)**: si los equipos no son potencia de 2, el administrador arma partidos de fase `REPECHAJE` entre dos equipos y el perdedor queda eliminado. Con la cantidad en potencia de 2, `POST .../bracket` genera las llaves con los cruces sorteados al azar o indicados a mano. Las llaves avanzan solas: al finalizar un partido, el ganador pasa a la ronda siguiente y el partido siguiente se crea cuando se conocen sus dos equipos. Un partido de las llaves no termina empatado: con el marcador igual hay que registrar penales distintos. Incluye partido por el tercer puesto (activo por defecto) y el campeón.
+- **Fase de grupos y eliminatoria (`GROUPS_KNOCKOUT`)**: `POST .../groups` forma los grupos (sorteo o composición manual), define cuántos clasifican por grupo (1 o 2) y genera el calendario de cada grupo a una vuelta. La tabla de cada grupo usa las mismas reglas de la liga. Con todos los partidos de grupos finalizados, `POST .../bracket` arma la eliminatoria con los clasificados: primero contra segundo de otro grupo.
+- **Finalizar un torneo** de eliminatoria o de grupos exige además que la final esté finalizada (hay campeón). Los partidos de las llaves no se eliminan ni cambian de equipos; su fecha sí se edita.
+- **Estado**: con esto el módulo de torneos del backend queda completo en sus tres formatos; el front se hace en una sola entrega.
 
 ### Alineaciones
 

@@ -21,7 +21,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.PenaltiesRequestDTO;
 import com.marin.mas_que_amigos.exception.BusinessException;
+import com.marin.mas_que_amigos.exception.NotFoundException;
 import com.marin.mas_que_amigos.mapper.PartidoMapper;
 import com.marin.mas_que_amigos.model.Equipo;
 import com.marin.mas_que_amigos.model.Partido;
@@ -53,12 +55,14 @@ class PartidoServiceTest {
     private ValidationCommonService validacionService;
     @Mock
     private TournamentService tournamentService;
+    @Mock
+    private BracketService bracketService;
 
     private PartidoService partidoService;
 
     @BeforeEach
     void setUp() {
-        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, estadisticasRepository, cambioJugadorRepository, mapper, tournamentService);
+        partidoService = new PartidoService(partidoRepository, equipoRepository, alineacionRepository, estadisticasRepository, cambioJugadorRepository, mapper, tournamentService, bracketService);
         ReflectionTestUtils.setField(partidoService, "validacionService", validacionService);
     }
 
@@ -229,9 +233,9 @@ class PartidoServiceTest {
         datosNuevos.setHora(dto.getHora());
         datosNuevos.setFase(Partido.Fase.FASE_DE_GRUPOS);
         when(partidoRepository.findById(50L)).thenReturn(Optional.of(existente));
-        when(equipoRepository.findById(local.getId())).thenReturn(Optional.of(local));
-        when(equipoRepository.findById(visitante.getId())).thenReturn(Optional.of(visitante));
-        // lenient: en el caso de "equipo no inscrito" el servicio falla antes de mapear.
+        // lenient: algunos casos (equipo no inscrito, partido de las llaves) fallan antes de leer los equipos o de mapear.
+        lenient().when(equipoRepository.findById(local.getId())).thenReturn(Optional.of(local));
+        lenient().when(equipoRepository.findById(visitante.getId())).thenReturn(Optional.of(visitante));
         lenient().when(mapper.toEntity(dto)).thenReturn(datosNuevos);
     }
 
@@ -326,6 +330,189 @@ class PartidoServiceTest {
 
         verify(estadisticasRepository).deleteByPartidoId(50L);
         verify(partidoRepository).deleteById(50L);
+    }
+
+    // ------------------------------------------------------------------ penales (add-knockout-and-groups)
+
+    private PenaltiesRequestDTO penales(Integer local, Integer visitante) {
+        PenaltiesRequestDTO request = new PenaltiesRequestDTO();
+        request.setHomePenalties(local);
+        request.setAwayPenalties(visitante);
+        return request;
+    }
+
+    private Partido partidoEnCurso() {
+        Partido partido = partidoExistente(torneo(7L, TournamentFormat.KNOCKOUT), equipo(1L, "Macalister"), equipo(2L, "Comark"));
+        partido.setEstado(Partido.Estado.EN_CURSO);
+        partido.setGolesLocal(1);
+        partido.setGolesVisitante(1);
+        return partido;
+    }
+
+    @Test
+    void registrarPenales_validosEnUnPartidoQueExigeGanador_losGuardaYNoTocaElMarcador() {
+        Partido partido = partidoEnCurso();
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(bracketService.requiresWinner(partido)).thenReturn(true);
+        when(partidoRepository.save(partido)).thenReturn(partido);
+        when(mapper.toDTO(partido)).thenReturn(new PartidoDTO());
+
+        partidoService.registrarPenales(50L, penales(5, 4));
+
+        assertThat(partido.getPenalesLocal()).isEqualTo(5);
+        assertThat(partido.getPenalesVisitante()).isEqualTo(4);
+        assertThat(partido.getGolesLocal()).isEqualTo(1);
+        assertThat(partido.getGolesVisitante()).isEqualTo(1);
+    }
+
+    @Test
+    void registrarPenales_iguales_lanzaBusinessExceptionYNoGuarda() {
+        Partido partido = partidoEnCurso();
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(bracketService.requiresWinner(partido)).thenReturn(true);
+
+        assertThatThrownBy(() -> partidoService.registrarPenales(50L, penales(4, 4)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("empatados");
+
+        verify(partidoRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarPenales_enUnPartidoQueNoExigeGanador_lanzaBusinessException() {
+        Partido partido = partidoEnCurso();
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(bracketService.requiresWinner(partido)).thenReturn(false);
+
+        assertThatThrownBy(() -> partidoService.registrarPenales(50L, penales(5, 4)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("no usa penales");
+
+        verify(partidoRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarPenales_enUnPartidoProgramadoOFinalizado_lanzaBusinessException() {
+        for (Partido.Estado estado : new Partido.Estado[]{Partido.Estado.PROGRAMADO, Partido.Estado.FINALIZADO}) {
+            Partido partido = partidoEnCurso();
+            partido.setEstado(estado);
+            when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+
+            assertThatThrownBy(() -> partidoService.registrarPenales(50L, penales(5, 4)))
+                    .isInstanceOf(BusinessException.class)
+                    .hasMessageContaining("en curso");
+        }
+        verify(partidoRepository, never()).save(any());
+    }
+
+    @Test
+    void registrarPenales_partidoInexistente_lanzaNotFound() {
+        when(partidoRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> partidoService.registrarPenales(99L, penales(5, 4)))
+                .isInstanceOf(NotFoundException.class);
+    }
+
+    // ------------------------------------------------------------------ llaves (add-knockout-and-groups)
+
+    @Test
+    void finalizarPartido_quePideGanadorYEstaEmpatadoSinPenales_noLoFinalizaNiAvanza() {
+        Partido partido = partidoEnCurso();
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        doThrow(new BusinessException("Este partido no puede terminar empatado: registra los penales antes de finalizarlo."))
+                .when(bracketService).requireDecided(partido);
+
+        assertThatThrownBy(() -> partidoService.finalizarPartido(50L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("empatado");
+
+        assertThat(partido.getEstado()).isEqualTo(Partido.Estado.EN_CURSO);
+        verify(partidoRepository, never()).save(any());
+        verify(bracketService, never()).onMatchFinished(any());
+    }
+
+    @Test
+    void finalizarPartido_conGanador_loFinalizaYDespuesHaceAvanzarLasLlaves() {
+        Partido partido = partidoEnCurso();
+        partido.setGolesLocal(2);
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(partidoRepository.save(partido)).thenReturn(partido);
+        when(mapper.toDTO(partido)).thenReturn(new PartidoDTO());
+
+        partidoService.finalizarPartido(50L);
+
+        assertThat(partido.getEstado()).isEqualTo(Partido.Estado.FINALIZADO);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(bracketService, partidoRepository);
+        order.verify(bracketService).requireDecided(partido);
+        order.verify(partidoRepository).save(partido);
+        order.verify(bracketService).onMatchFinished(partido);
+    }
+
+    @Test
+    void finalizarPartido_unPartidoCualquieraSigueFinalizandoseComoSiempre() {
+        Partido partido = partidoEnCurso();
+        partido.setFase(Partido.Fase.FASE_DE_GRUPOS);
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(partidoRepository.save(partido)).thenReturn(partido);
+        when(mapper.toDTO(partido)).thenReturn(new PartidoDTO());
+
+        partidoService.finalizarPartido(50L);
+
+        assertThat(partido.getEstado()).isEqualTo(Partido.Estado.FINALIZADO);
+    }
+
+    @Test
+    void eliminar_unPartidoDeLasLlaves_loRechazaYNoBorraNada() {
+        Partido partido = partidoExistente(torneo(7L, TournamentFormat.KNOCKOUT), equipo(1L, "Macalister"), equipo(2L, "Comark"));
+        when(partidoRepository.findById(50L)).thenReturn(Optional.of(partido));
+        when(bracketService.isBracketMatch(50L)).thenReturn(true);
+
+        assertThatThrownBy(() -> partidoService.eliminar(50L))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("llaves");
+
+        verify(partidoRepository, never()).deleteById(any());
+        verify(estadisticasRepository, never()).deleteByPartidoId(any());
+    }
+
+    @Test
+    void actualizarPartido_cambiarLosEquiposDeUnPartidoDeLasLlaves_loRechaza() {
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Equipo otro = equipo(3L, "Real Madrid");
+        Partido deLasLlaves = partidoExistente(copa, local, visitante);
+        PartidoDTO dto = dtoDePartido(1L, 3L, null);
+        dto.setId(50L);
+        preparaEdicion(deLasLlaves, dto, local, otro);
+        when(bracketService.isBracketMatch(50L)).thenReturn(true);
+
+        assertThatThrownBy(() -> partidoService.actualizarPartido(dto))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("llaves");
+
+        verify(partidoRepository, never()).save(any());
+    }
+
+    @Test
+    void actualizarPartido_cambiarLaFechaDeUnPartidoDeLasLlaves_loAcepta() {
+        Tournament copa = torneo(7L, TournamentFormat.KNOCKOUT);
+        Equipo local = equipo(1L, "Macalister");
+        Equipo visitante = equipo(2L, "Comark");
+        Partido deLasLlaves = partidoExistente(copa, local, visitante);
+        PartidoDTO dto = dtoDePartido(1L, 2L, null);
+        dto.setId(50L);
+        dto.setFecha(LocalDate.of(2027, 5, 9));
+        preparaEdicion(deLasLlaves, dto, local, visitante);
+        lenient().when(bracketService.isBracketMatch(50L)).thenReturn(true);
+        when(partidoRepository.save(deLasLlaves)).thenReturn(deLasLlaves);
+        when(mapper.toDTO(deLasLlaves)).thenReturn(new PartidoDTO());
+
+        partidoService.actualizarPartido(dto);
+
+        assertThat(deLasLlaves.getFecha()).isEqualTo(LocalDate.of(2027, 5, 9));
+        assertThat(deLasLlaves.getEquipoLocal()).isSameAs(local);
+        assertThat(deLasLlaves.getEquipoVisitante()).isSameAs(visitante);
     }
 
     @Test

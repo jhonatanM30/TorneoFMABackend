@@ -191,7 +191,10 @@ class SecurityRulesTest {
                 post("/api/tournaments/999999/finish"),
                 json(post("/api/tournaments/999999/teams"), "{}"),
                 delete("/api/tournaments/999999/teams/999999"),
-                json(post("/api/tournaments/999999/schedule"), "{}"));
+                json(post("/api/tournaments/999999/schedule"), "{}"),
+                json(post("/api/tournaments/999999/bracket"), "{}"),
+                json(post("/api/tournaments/999999/groups"), "{}"),
+                json(put("/api/partidos/999999/penales"), "{}"));
     }
 
     // ---------------------------------------------------------------- visitor
@@ -302,6 +305,8 @@ class SecurityRulesTest {
         assertThat(statusOf(get("/api/tournaments/999999/teams"))).isEqualTo(404);
         assertThat(statusOf(get("/api/tournaments/999999/matches"))).isEqualTo(404);
         assertThat(statusOf(get("/api/tournaments/999999/standings"))).isEqualTo(404);
+        assertThat(statusOf(get("/api/tournaments/999999/bracket"))).isEqualTo(404);
+        assertThat(statusOf(get("/api/tournaments/999999/groups"))).isEqualTo(404);
     }
 
     @Test

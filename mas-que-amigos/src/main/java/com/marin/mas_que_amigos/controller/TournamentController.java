@@ -1,12 +1,18 @@
 package com.marin.mas_que_amigos.controller;
 
+import com.marin.mas_que_amigos.dto.BracketDTO;
+import com.marin.mas_que_amigos.dto.BracketRequestDTO;
 import com.marin.mas_que_amigos.dto.EquipoDTO;
+import com.marin.mas_que_amigos.dto.GroupDTO;
+import com.marin.mas_que_amigos.dto.GroupsRequestDTO;
 import com.marin.mas_que_amigos.dto.PartidoDTO;
 import com.marin.mas_que_amigos.dto.ScheduleRequestDTO;
 import com.marin.mas_que_amigos.dto.StandingDTO;
 import com.marin.mas_que_amigos.dto.TournamentDTO;
 import com.marin.mas_que_amigos.dto.TournamentRequestDTO;
 import com.marin.mas_que_amigos.dto.TournamentTeamRequestDTO;
+import com.marin.mas_que_amigos.service.BracketService;
+import com.marin.mas_que_amigos.service.GroupStageService;
 import com.marin.mas_que_amigos.service.TournamentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -38,9 +44,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class TournamentController {
 
     private final TournamentService tournamentService;
+    private final BracketService bracketService;
+    private final GroupStageService groupStageService;
 
-    public TournamentController(TournamentService tournamentService) {
+    public TournamentController(TournamentService tournamentService, BracketService bracketService,
+            GroupStageService groupStageService) {
         this.tournamentService = tournamentService;
+        this.bracketService = bracketService;
+        this.groupStageService = groupStageService;
     }
 
     @Operation(summary = "Crear torneo",
@@ -193,6 +204,81 @@ public class TournamentController {
     public List<PartidoDTO> generateSchedule(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id,
             @Valid @RequestBody ScheduleRequestDTO request) {
         return tournamentService.generateSchedule(id, request);
+    }
+
+    @Operation(summary = "Generar las llaves de eliminatoria",
+            description = "Solo ADMIN. Genera las llaves de un torneo KNOCKOUT o GROUPS_KNOCKOUT en curso. En KNOCKOUT participan los "
+                    + "equipos inscritos que no fueron eliminados en un partido de repechaje (fase REPECHAJE), y deben ser una potencia "
+                    + "de 2; los cruces de la primera ronda se sortean al azar o se indican en pairings. En GROUPS_KNOCKOUT participan "
+                    + "los clasificados de los grupos (todos los partidos de grupos finalizados) con cruce de primero contra segundo de "
+                    + "otro grupo; ahí no se pueden indicar cruces. La ronda r cae en startDate + (r - 1) x intervalDays (7 por defecto); "
+                    + "la final y el tercer puesto el mismo día. Solo se crean los partidos de la primera ronda: los demás nacen cuando "
+                    + "el ganador avanza. thirdPlaceMatch (por defecto true) incluye el partido por el tercer puesto.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Llaves generadas",
+                content = @Content(schema = @Schema(implementation = BracketDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Datos inválidos; torneo sin formato de eliminatoria o no en curso; llaves ya "
+                + "generadas; equipos que no son potencia de 2 o repechaje sin finalizar; cruces inválidos; grupos sin terminar; "
+                + "fecha de inicio no posterior al último partido; equipo ocupado en la fecha de la primera ronda", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Sin sesión o sesión vencida", content = @Content),
+        @ApiResponse(responseCode = "403", description = "El usuario no es administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @PostMapping("/{id}/bracket")
+    @ResponseStatus(HttpStatus.CREATED)
+    public BracketDTO generateBracket(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id,
+            @Valid @RequestBody BracketRequestDTO request) {
+        return bracketService.generateBracket(id, request);
+    }
+
+    @Operation(summary = "Llaves de eliminatoria",
+            description = "Consulta pública. Las rondas con su nombre (octavos de final, cuartos de final, semifinales, final), cada cruce "
+                    + "con sus equipos (vacíos hasta que se conocen), su partido, marcador, penales y ganador, el cruce por el tercer "
+                    + "puesto y el campeón cuando la final ya terminó. Sin llaves generadas, la lista de rondas es vacía.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Llaves del torneo",
+                content = @Content(schema = @Schema(implementation = BracketDTO.class))),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @GetMapping("/{id}/bracket")
+    public BracketDTO getBracket(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id) {
+        return bracketService.getBracket(id);
+    }
+
+    @Operation(summary = "Formar los grupos",
+            description = "Solo ADMIN. Forma los grupos de un torneo GROUPS_KNOCKOUT en curso, sin grupos ni partidos. La cantidad de grupos "
+                    + "debe ser una potencia de 2, cada grupo con al menos 2 equipos y los clasificados por grupo (1 o 2) menos que los "
+                    + "equipos del grupo más pequeño. Los equipos se sortean (tamaños que difieren como máximo en 1) o se indican en "
+                    + "groups. Genera el calendario de cada grupo a una vuelta: la jornada k de todos los grupos cae el mismo día. "
+                    + "Es atómico: si un equipo ya juega en una fecha, no se crea nada.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Grupos formados",
+                content = @Content(schema = @Schema(implementation = GroupDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Datos inválidos, formato o estado del torneo incorrecto, grupos o partidos ya "
+                + "existentes, composición inválida o equipo ocupado en una fecha", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Sin sesión o sesión vencida", content = @Content),
+        @ApiResponse(responseCode = "403", description = "El usuario no es administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @PostMapping("/{id}/groups")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<GroupDTO> createGroups(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id,
+            @Valid @RequestBody GroupsRequestDTO request) {
+        return groupStageService.createGroups(id, request);
+    }
+
+    @Operation(summary = "Grupos y sus tablas",
+            description = "Consulta pública. Cada grupo con sus equipos y su tabla de posiciones, con las reglas de la liga (3-1-0 y el "
+                    + "mismo desempate). La tabla de un grupo cuenta solo los partidos de fase de grupos finalizados entre equipos de ese "
+                    + "grupo, incluidos los armados a mano. Lista vacía si el torneo no tiene grupos.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Grupos del torneo",
+                content = @Content(schema = @Schema(implementation = GroupDTO.class))),
+        @ApiResponse(responseCode = "404", description = "El torneo no existe", content = @Content)
+    })
+    @GetMapping("/{id}/groups")
+    public List<GroupDTO> getGroups(@Parameter(description = "Id del torneo") @PathVariable @Min(1) Long id) {
+        return groupStageService.getGroups(id);
     }
 
     @Operation(summary = "Tabla de posiciones",

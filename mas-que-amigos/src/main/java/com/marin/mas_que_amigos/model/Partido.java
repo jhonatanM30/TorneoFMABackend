@@ -74,6 +74,15 @@ public class Partido implements Serializable{
     @JoinColumn(name = "id_torneo", nullable = false)
     private Tournament torneo;
 
+    // Penales de un partido que exige ganador (llaves y repechaje): solo
+    // desempatan un marcador igual y no cambian el marcador. Nulos hasta que se
+    // registran (PartidoService#registrarPenales).
+    @Column(name = "penales_local")
+    private Integer penalesLocal;
+
+    @Column(name = "penales_visitante")
+    private Integer penalesVisitante;
+
     public enum Fase {
         FASE_DE_GRUPOS, REPECHAJE, ELIMINACION_DIRECTA, FINAL
     }

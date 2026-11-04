@@ -36,9 +36,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class TournamentService {
 
     private static final int MINIMUM_TEAMS_TO_START = 2;
-    // Fair play tie-breaker: fewer points are better.
-    private static final int YELLOW_CARD_FAIR_PLAY_POINTS = 1;
-    private static final int RED_CARD_FAIR_PLAY_POINTS = 2;
 
     private static final int DEFAULT_ROUND_INTERVAL_DAYS = 7;
 
@@ -53,12 +50,17 @@ public class TournamentService {
     private final EquipoMapper equipoMapper;
     private final PartidoMapper partidoMapper;
     private final EstadisticaRepository estadisticaRepository;
+    private final MatchDateConflicts matchDateConflicts;
+    private final BracketService bracketService;
 
     public TournamentService(TournamentRepository tournamentRepository,
             TournamentTeamRepository tournamentTeamRepository, EquipoRepository equipoRepository,
             PartidoRepository partidoRepository, TournamentMapper mapper, EquipoMapper equipoMapper,
-            PartidoMapper partidoMapper, EstadisticaRepository estadisticaRepository) {
+            PartidoMapper partidoMapper, EstadisticaRepository estadisticaRepository,
+            MatchDateConflicts matchDateConflicts, BracketService bracketService) {
+        this.bracketService = bracketService;
         this.estadisticaRepository = estadisticaRepository;
+        this.matchDateConflicts = matchDateConflicts;
         this.tournamentRepository = tournamentRepository;
         this.tournamentTeamRepository = tournamentTeamRepository;
         this.equipoRepository = equipoRepository;
@@ -224,6 +226,10 @@ public class TournamentService {
                     + " partido(s). Juégalos o elimínalos primero.");
         }
 
+        // KNOCKOUT and GROUPS_KNOCKOUT also need a champion: between rounds the matches
+        // of the next ones do not exist yet, so "no pending matches" is not enough.
+        bracketService.requireChampion(tournament);
+
         tournament.setStatus(TournamentStatus.FINISHED);
         return toDTO(tournamentRepository.save(tournament));
     }
@@ -263,7 +269,7 @@ public class TournamentService {
         Map<Long, Integer> fairPlayPoints = new HashMap<>();
         for (EstadisticaRepository.TeamCards cards : estadisticaRepository.sumarTarjetasPorEquipoEnTorneo(tournamentId)) {
             fairPlayPoints.put(cards.getTeamId(),
-                    (int) (cards.getYellowCards() * YELLOW_CARD_FAIR_PLAY_POINTS + cards.getRedCards() * RED_CARD_FAIR_PLAY_POINTS));
+                    LeagueStandingsCalculator.fairPlayPoints(cards.getYellowCards(), cards.getRedCards()));
         }
 
         return standingsCalculator.calculate(teams, results, fairPlayPoints);
@@ -307,12 +313,8 @@ public class TournamentService {
         for (int round = 0; round < rounds.size(); round++) {
             LocalDate date = request.getStartDate().plusDays((long) round * intervalDays);
             for (LeagueScheduleGenerator.Pairing pairing : rounds.get(round)) {
-                for (Long teamId : new Long[]{pairing.getHomeTeamId(), pairing.getAwayTeamId()}) {
-                    if (partidoRepository.existePartidoEnFechaParaEquipo(date, teamId)) {
-                        throw new BusinessException("El equipo " + teamsById.get(teamId).getNombre() + " ya tiene un partido el "
-                                + date + ": elige otra fecha de inicio o intervalo.");
-                    }
-                }
+                matchDateConflicts.requireFree(date, teamsById.get(pairing.getHomeTeamId()));
+                matchDateConflicts.requireFree(date, teamsById.get(pairing.getAwayTeamId()));
                 Partido match = new Partido();
                 match.setEquipoLocal(teamsById.get(pairing.getHomeTeamId()));
                 match.setEquipoVisitante(teamsById.get(pairing.getAwayTeamId()));

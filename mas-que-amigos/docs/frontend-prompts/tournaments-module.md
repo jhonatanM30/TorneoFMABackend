@@ -2,15 +2,15 @@
 
 > Para la IA que trabaja el repositorio `MasQueAmigos-Torneo` (HTML, CSS y JavaScript planos, sin framework ni build). No hagas commit: deja los cambios en el árbol de trabajo para que el usuario los revise.
 
-> **Estado del documento — no entregar todavía.** Este prompt unifica en una sola implementación del front los tres changes del backend del módulo de torneos. El front se hará una vez, **cuando los tres estén listos**. Si ves este aviso, no ejecutes el prompt.
+> **Alcance de la entrega.** Este prompt reúne los tres changes del backend del módulo de torneos y se implementa **en una sola entrega**, en este orden: Parte 1 (torneos, inscripción y partidos manuales), Parte 2 (liga: tabla y calendario) y Parte 3 (eliminatoria directa, grupos y penales). El backend ya tiene los tres changes implementados.
 >
-> | Change | Contenido | Estado |
+> | Parte | Formato que cubre | Qué agrega |
 > |---|---|---|
-> | 1. `add-tournaments` | Torneos, formato, inscripción de equipos y partidos manuales | Implementado y archivado (Parte 1 completa) |
-> | 2. `add-league-standings` | Tabla de posiciones y calendario de la liga | Implementado en el backend (Parte 2 completa) |
-> | 3. Grupos y eliminatoria | Grupos, clasificación y llaves | Sin planificar (Parte 3 pendiente) |
+> | 1 | Todos | Torneos, formato, inscripción de equipos y partidos manuales |
+> | 2 | `LEAGUE` | Tabla de posiciones y calendario automático |
+> | 3 | `KNOCKOUT` y `GROUPS_KNOCKOUT` | Llaves, repechaje, penales, grupos y eliminatoria de los clasificados |
 >
-> Al cerrar el change 3, completa la Parte 3, ajusta lo que cambie en las Partes 1 y 2 y **quita este aviso** antes de entregarlo. Este archivo reemplaza al anterior `add-tournaments.md`, que no se ejecutará por separado.
+> Los endpoints de las Partes 2 y 3 responden `400` si el torneo no es del formato que corresponde: decide qué mostrar según el `format` del torneo.
 
 # Parte 1 — Torneos, inscripción y partidos manuales (change 1)
 
@@ -20,7 +20,7 @@ El backend (`mas-que-amigos`, puerto 57075 por defecto) incorporó **torneos**: 
 
 **No hay cambios incompatibles.** Todo lo que el front hace hoy sigue funcionando: un partido creado sin indicar torneo queda en el torneo protegido "Histórico". Lo nuevo es opcional de adoptar, pero es el objetivo de esta tarea.
 
-Alcance de la Parte 1: el torneo guarda su formato y lo bloquea al iniciar, y todos los partidos se crean a mano. La tabla de posiciones y el calendario automático de las ligas están en la Parte 2; los grupos y las llaves, en la Parte 3 (pendiente). No muestres nada de eso hasta que su parte esté completa.
+Alcance de la Parte 1: el torneo guarda su formato y lo bloquea al iniciar, y todos los partidos se crean a mano con `POST /api/partidos` y `idTorneo`. La tabla de posiciones y el calendario automático de las ligas están en la Parte 2; las llaves, los grupos y los penales, en la Parte 3.
 
 ## Lo que debes construir
 
@@ -153,7 +153,7 @@ Muestra siempre el `mensaje` del servidor al usuario; ya viene en español.
 
 # Parte 2 — Liga: tabla de posiciones y calendario (change 2)
 
-> Solo aplica a torneos con `format = "LEAGUE"`. Para `GROUPS_KNOCKOUT` y `KNOCKOUT` el servidor responde `400` en estos endpoints (llegan en la Parte 3); no muestres la tabla ni el botón de calendario en esos torneos ni en el "Histórico".
+> Solo aplica a torneos con `format = "LEAGUE"`. Para `GROUPS_KNOCKOUT` y `KNOCKOUT` el servidor responde `400` en estos endpoints (esos formatos usan la Parte 3); no muestres la tabla ni el botón de calendario en esos torneos ni en el "Histórico".
 
 ## Qué construir
 
@@ -234,10 +234,171 @@ Errores: `400` regla de negocio `{"indicadorRespuesta":"Error","mensaje":"..."}`
 
 ---
 
-# Parte 3 — Grupos y eliminatoria (change 3) — PENDIENTE
+# Parte 3 — Eliminatoria directa, grupos y penales (change 3)
 
-> Esta parte se completa cuando el change 3 esté implementado. No la ejecutes mientras diga "pendiente".
+> Aplica a los torneos `KNOCKOUT` (eliminatoria directa) y `GROUPS_KNOCKOUT` (fase de grupos y eliminatoria). Para `LEAGUE` y para el "Histórico" no muestres nada de esta parte.
 
-Lo que se sabe hasta ahora: los formatos `GROUPS_KNOCKOUT` (fase de grupos y luego eliminatoria) y `KNOCKOUT` (eliminatoria directa) hoy solo se guardan y se bloquean al iniciar el torneo; la tabla y el calendario de la Parte 2 responden `400` para ellos. El change 3 definirá los grupos, la clasificación, las llaves, el avance de ronda y qué pasa cuando el número de equipos no es potencia de 2.
+## Qué construir
 
-Por completar al cerrar el change 3: endpoints y formas de respuesta, reglas de clasificación, pantallas de grupos y llaves, cambios sobre las Partes 1 y 2, y criterios de aceptación.
+1. **Llaves de la eliminatoria**: en el detalle de un torneo `KNOCKOUT` o `GROUPS_KNOCKOUT`, un cuadro con las rondas en orden (octavos de final, cuartos de final, semifinales, final), cada cruce con sus equipos, el marcador, los penales y el ganador, el partido por el tercer puesto aparte y el campeón. Visible para todos (consulta pública). Muestra los cruces sin equipos conocidos como pendientes ("Por definir") y no los trates como error.
+2. **Generar las llaves (solo `ADMIN`)**: botón "Generar llaves" con fecha de inicio, hora, intervalo entre rondas (opcional), casilla "Partido por el tercer puesto" (marcada por defecto) y, solo en `KNOCKOUT`, la opción de elegir los cruces a mano (si no, se sortean).
+3. **Repechaje (solo `KNOCKOUT`)**: si los equipos inscritos no son una potencia de 2 (2, 4, 8, 16...), el servidor lo rechaza con un mensaje que pide armar un repechaje. Guía al administrador: crear un partido entre dos equipos con la fase `REPECHAJE` (con el formulario de partidos de la Parte 1, eligiendo esa fase), jugarlo, y volver a generar las llaves. El perdedor del repechaje queda eliminado y no entra al cuadro.
+4. **Penales (solo `ADMIN`)**: en un partido en curso que exige ganador, un formulario para registrar los penales de cada equipo. Al finalizar un partido empatado de este tipo, si el servidor responde que no puede terminar empatado, abre ese formulario.
+5. **Formar grupos (solo `ADMIN`, solo `GROUPS_KNOCKOUT`)**: botón "Formar grupos" con la cantidad de grupos, cuántos clasifican por grupo, fecha de inicio, hora, intervalo (opcional) y, opcionalmente, la composición de cada grupo elegida a mano (si no, se sortea).
+6. **Tabla de cada grupo**: en `GROUPS_KNOCKOUT`, una tabla por grupo con las mismas columnas de la tabla de la liga (Parte 2). Marca visualmente a los que clasifican (los primeros `qualifiersCount` de cada tabla).
+7. **Eliminatoria tras los grupos**: cuando todos los partidos de grupos terminaron, el mismo botón "Generar llaves" arma el cuadro con los clasificados; aquí **no** se eligen cruces a mano.
+
+## Cómo funciona (lo que el servidor ya hace)
+
+- **Partidos que exigen ganador**: los partidos de las llaves y los de fase `REPECHAJE` de un torneo `KNOCKOUT`. No se pueden finalizar empatados: con el marcador igual hay que registrar antes penales **distintos**. El ganador es el de más goles y, con el marcador igual, el de más penales. Los penales no cambian el marcador.
+- **Avance automático**: al finalizar un partido de las llaves (`PUT /api/partidos/{id}/finalizar`, el mismo de siempre), el ganador pasa a la ronda siguiente y el partido siguiente se crea solo cuando se conocen sus dos equipos. Refresca las llaves después de finalizar un partido.
+- **Tercer puesto**: los perdedores de las semifinales juegan entre sí en la fecha de la final (solo con al menos 4 equipos y si la casilla está marcada).
+- **Fechas**: la ronda `r` cae en `startDate + (r − 1) × intervalDays` (7 por defecto). Los cruces muestran la fecha y la hora del partido cuando ya existe y las de su ronda mientras no. Un partido de ronda posterior puede chocar con otro de otro torneo: se resuelve editando su fecha.
+- **Partidos de las llaves protegidos**: no se eliminan ni cambian de equipos; su fecha y hora sí se editan. No ofrezcas "Eliminar" ni "Cambiar equipos" en esos partidos.
+- **Finalizar el torneo**: exige que la final esté finalizada (campeón definido). Si no, el servidor responde con el motivo.
+- **Grupos**: la cantidad de grupos es una potencia de 2 (2, 4, 8...), cada grupo tiene al menos 2 equipos y los clasificados por grupo son 1 o 2 y menos que el grupo más pequeño. Los equipos se reparten en grupos A, B, C... con tamaños que difieren como máximo en 1. Se genera solo el calendario de cada grupo a una vuelta (todos contra todos): la jornada `k` de todos los grupos cae el mismo día.
+- **Tabla de grupo**: cuenta solo los partidos de fase de grupos finalizados entre equipos del grupo (los armados a mano también), 3-1-0 y el mismo desempate de la liga. Los partidos de las llaves no cuentan.
+- **Cruces tras los grupos**: con 2 clasificados por grupo, primero de un grupo contra segundo de otro (grupos emparejados A con B, C con D...), y los equipos de un mismo grupo quedan en mitades opuestas del cuadro; con 1 clasificado, se enfrentan los primeros de los grupos emparejados.
+
+## Contrato del API
+
+Base `http://localhost:57075` (configurable). Las escrituras llevan `Authorization: Bearer <token>` de un `ADMIN`.
+
+### `GET /api/tournaments/{id}/bracket` (público)
+
+```json
+{
+  "rounds": [
+    {
+      "round": 1,
+      "name": "Cuartos de final",
+      "ties": [
+        {
+          "id": 1001, "position": 0,
+          "homeTeam": { "id": 8, "name": "Test Team 3" },
+          "awayTeam": { "id": 10, "name": "Test Team 5" },
+          "matchId": 8, "matchStatus": "FINALIZADO",
+          "homeGoals": 1, "awayGoals": 1, "homePenalties": 5, "awayPenalties": 4,
+          "winnerTeamId": 8, "date": "2027-05-01", "time": "18:00:00"
+        }
+      ]
+    },
+    { "round": 2, "name": "Semifinales", "ties": [ { "id": 1005, "position": 0, "homeTeam": { "id": 8, "name": "Test Team 3" }, "awayTeam": null, "matchId": null, "matchStatus": null, "date": "2027-05-08", "time": "18:00:00" } ] },
+    { "round": 3, "name": "Final", "ties": [] }
+  ],
+  "thirdPlace": null,
+  "champion": null
+}
+```
+
+- `rounds` está vacía mientras no se han generado las llaves.
+- En cada cruce, `homeTeam`, `awayTeam`, `matchId`, `matchStatus` y los goles y penales son `null` hasta que existen; `winnerTeamId` es `null` hasta que el partido se finaliza.
+- `thirdPlace` tiene la misma forma que un cruce (o `null`); `champion` es `{id, name}` o `null` hasta que se finaliza la final.
+- El nombre de la ronda viene en español; muéstralo tal cual. El orden de los cruces de una ronda es el del cuadro: los cruces `2k` y `2k + 1` alimentan al cruce `k` de la ronda siguiente.
+
+### `POST /api/tournaments/{id}/bracket` (solo `ADMIN`)
+
+```json
+{
+  "startDate": "2027-05-01",
+  "time": "18:00:00",
+  "intervalDays": 7,
+  "thirdPlaceMatch": true,
+  "pairings": [ { "homeTeamId": 8, "awayTeamId": 10 }, { "homeTeamId": 6, "awayTeamId": 7 } ]
+}
+```
+
+- `startDate` y `time` obligatorios; `intervalDays` opcional (1 a 30, por defecto 7); `thirdPlaceMatch` opcional (por defecto `true`); `pairings` opcional y **solo en `KNOCKOUT`**: los cruces de la primera ronda en el orden del cuadro, que deben incluir a todos los equipos que participan exactamente una vez. Sin `pairings`, el servidor sortea.
+- `startDate` debe ser posterior a la fecha del último partido del torneo (por ejemplo, tras el repechaje o la fase de grupos).
+- Respuesta `201`: el mismo cuerpo del `GET`. Solo se crean los partidos de la primera ronda.
+- Una sola vez por torneo.
+
+### `POST /api/tournaments/{id}/groups` (solo `ADMIN`)
+
+```json
+{
+  "groupCount": 2,
+  "qualifiersPerGroup": 2,
+  "startDate": "2027-02-06",
+  "time": "15:00:00",
+  "intervalDays": 7,
+  "groups": [ { "teamIds": [6, 8, 11, 13] }, { "teamIds": [7, 9, 10, 12] } ]
+}
+```
+
+- `groupCount`, `qualifiersPerGroup`, `startDate` y `time` obligatorios; `intervalDays` opcional; `groups` opcional (composición manual: todos los inscritos una sola vez, en el orden A, B, C...). Sin `groups`, el servidor sortea.
+- Solo en un torneo `GROUPS_KNOCKOUT` en curso, sin grupos ni partidos. Es todo o nada: si un equipo ya juega en alguna fecha, no se crea nada y el mensaje nombra al equipo y la fecha.
+- Respuesta `201`: arreglo de grupos (misma forma que el `GET`).
+
+### `GET /api/tournaments/{id}/groups` (público)
+
+```json
+[
+  {
+    "id": 10, "name": "A", "qualifiersCount": 2,
+    "teams": [ { "id": 6, "name": "Test Team 1" } ],
+    "standings": [
+      { "position": 1, "teamId": 6, "teamName": "Test Team 1", "played": 3, "won": 3, "drawn": 0, "lost": 0,
+        "goalsFor": 6, "goalsAgainst": 0, "goalDifference": 6, "points": 9, "fairPlayPoints": 0 }
+    ]
+  }
+]
+```
+
+- `standings` tiene la misma forma que la tabla de la liga (Parte 2) y ya viene ordenada por posición; no reordenes.
+- Lista vacía si el torneo no tiene grupos.
+
+### `PUT /api/partidos/{id}/penales` (solo `ADMIN`)
+
+```json
+{ "penalesLocal": 5, "penalesVisitante": 4 }
+```
+
+- Solo en un partido **en curso** que exige ganador (partidos de las llaves y de repechaje de un `KNOCKOUT`). Enteros `>= 0` y distintos entre sí.
+- Respuesta `200`: el partido (`PartidoDTO`), que ahora incluye `penalesLocal` y `penalesVisitante` cuando existen. Esos campos también aparecen en `GET /api/partidos` y en las demás respuestas de partido.
+
+### Partidos (`POST /api/partidos`)
+
+Sigue igual que en la Parte 1. Para el repechaje, envía `"fase": "REPECHAJE"` y el `idTorneo` del torneo `KNOCKOUT` en curso, con dos equipos inscritos. Para reemplazar un partido de grupo aplazado, crea uno manual con `"fase": "FASE_DE_GRUPOS"` entre dos equipos del mismo grupo: cuenta en la tabla del grupo.
+
+## Formato de los errores
+
+| Código | Cuándo | Cuerpo |
+|---|---|---|
+| `400` | Regla de negocio (equipos que no son potencia de 2, repechaje sin finalizar, llaves ya generadas, cruces inválidos, grupos sin terminar, fecha de inicio no posterior, empate sin penales, penales iguales, partido de las llaves protegido, falta el campeón...) | `{"indicadorRespuesta":"Error","mensaje":"..."}` |
+| `400` | Validación de campos | mapa campo → mensaje (por ejemplo `{"penalesLocal":"Los penales del equipo local no pueden ser negativos."}`; los nombres de campo de las respuestas de validación pueden venir en inglés, como `homePenalties`: muestra solo el mensaje) |
+| `401` / `403` | Sin sesión o sesión vencida / rol que no alcanza | `{"indicadorRespuesta":"...","mensaje":"..."}` |
+| `404` | El torneo o el partido no existe | `{"indicadorRespuesta":"Sin Registros","mensaje":"..."}` |
+
+Muestra siempre el `mensaje` del servidor al usuario; ya viene en español.
+
+## Flujos que debe poder hacer el administrador
+
+**Eliminatoria directa**
+1. Crear el torneo `KNOCKOUT`, inscribir los equipos e iniciarlo (Parte 1).
+2. Si los equipos no son potencia de 2, armar y jugar uno o más partidos de `REPECHAJE` hasta que queden 2, 4, 8, 16... equipos.
+3. "Generar llaves" (sorteo o cruces manuales).
+4. Jugar los partidos de cada ronda como siempre (alineaciones, iniciar, estadísticas), registrar penales si el partido empata y finalizarlo; las llaves avanzan solas.
+5. Al finalizar la final, aparece el campeón; finalizar el torneo.
+
+**Grupos y eliminatoria**
+1. Crear el torneo `GROUPS_KNOCKOUT`, inscribir los equipos e iniciarlo.
+2. "Formar grupos" (sorteo o composición manual).
+3. Jugar los partidos de grupo; si uno se aplaza, eliminarlo y crear uno manual de reemplazo entre equipos del mismo grupo.
+4. Cuando todos terminaron, "Generar llaves" con los clasificados y seguir como en la eliminatoria directa.
+
+## Criterios de aceptación de la Parte 3
+
+- Un visitante, un `DT` y un `ADMIN` ven las llaves y las tablas de los grupos; solo el `ADMIN` ve "Generar llaves", "Formar grupos" y el formulario de penales.
+- Con 8 equipos en `KNOCKOUT`, el `ADMIN` genera las llaves con sorteo y ve 3 rondas (cuartos de final, semifinales y final) con 4, 2 y 1 cruces, y el partido por el tercer puesto aparte.
+- Con 5 equipos, intentar generar muestra el mensaje del servidor que pide un repechaje; tras jugarlo, se generan las llaves con 4 equipos.
+- Un partido de las llaves empatado no se finaliza sin penales: el formulario de penales se abre y, con penales distintos, el partido se finaliza y el ganador aparece en la ronda siguiente.
+- Al completarse dos cruces consecutivos, el cruce siguiente muestra a sus dos equipos y su partido.
+- Los perdedores de las semifinales aparecen en el cruce por el tercer puesto; sin la casilla marcada, no existe.
+- Al finalizar la final se muestra el campeón y el torneo se puede finalizar; antes, el servidor lo rechaza y se muestra su mensaje.
+- Los partidos de las llaves no ofrecen "Eliminar" ni cambiar equipos; la fecha se edita y el cruce muestra la nueva fecha.
+- Con 8 equipos en `GROUPS_KNOCKOUT`, "Formar grupos" con 2 grupos y 2 clasificados crea los grupos A y B de 4 equipos con su calendario; formarlos de nuevo muestra el mensaje del servidor.
+- Las tablas de los grupos respetan el orden recibido, marcan a los clasificados y un partido manual de reemplazo cuenta.
+- Con los partidos de grupo sin terminar, "Generar llaves" muestra cuántos faltan; con todos terminados, los cruces son 1.º A vs 2.º B y 1.º B vs 2.º A (con 2 grupos y 2 clasificados).
+- En un torneo con grupos no se pueden elegir cruces a mano.
+- El front no ofrece repechaje ni cruces manuales en `GROUPS_KNOCKOUT`, ni muestra la tabla de liga o las llaves en un torneo `LEAGUE` o en el "Histórico".

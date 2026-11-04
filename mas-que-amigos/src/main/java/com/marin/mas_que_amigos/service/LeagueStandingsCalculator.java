@@ -28,6 +28,15 @@ public class LeagueStandingsCalculator {
     public static final int POINTS_PER_DRAW = 1;
     public static final int POINTS_PER_LOSS = 0;
 
+    // Fair play tie-breaker: fewer points are better.
+    public static final int YELLOW_CARD_FAIR_PLAY_POINTS = 1;
+    public static final int RED_CARD_FAIR_PLAY_POINTS = 2;
+
+    /** Fair play points of a team from its yellow and red cards. */
+    public static int fairPlayPoints(long yellowCards, long redCards) {
+        return (int) (yellowCards * YELLOW_CARD_FAIR_PLAY_POINTS + redCards * RED_CARD_FAIR_PLAY_POINTS);
+    }
+
     @Value
     public static class TeamRef {
 

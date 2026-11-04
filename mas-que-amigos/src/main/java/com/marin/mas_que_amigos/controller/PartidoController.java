@@ -6,6 +6,7 @@
 package com.marin.mas_que_amigos.controller;
 
 import com.marin.mas_que_amigos.dto.PartidoDTO;
+import com.marin.mas_que_amigos.dto.PenaltiesRequestDTO;
 import com.marin.mas_que_amigos.service.PartidoService;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -114,6 +115,25 @@ public class PartidoController {
     public PartidoDTO finalizarPartido(
             @Parameter(description = "Id del partido") @PathVariable @Min(1) Long id) {
         return partidoService.finalizarPartido(id);
+    }
+
+    @Operation(summary = "Registrar penales",
+            description = "Solo ADMIN. Registra los penales de un partido en curso que exige ganador (partidos de las llaves y de "
+                    + "repechaje de un torneo KNOCKOUT). Los penales deben ser distintos y solo desempatan un marcador igual: no "
+                    + "cambian el marcador del partido.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Penales registrados",
+                content = @Content(schema = @Schema(implementation = PartidoDTO.class))),
+        @ApiResponse(responseCode = "400", description = "Penales inválidos o iguales, el partido no exige ganador o no está en curso", content = @Content),
+        @ApiResponse(responseCode = "401", description = "Sin sesión o sesión vencida", content = @Content),
+        @ApiResponse(responseCode = "403", description = "El usuario no es administrador", content = @Content),
+        @ApiResponse(responseCode = "404", description = "El partido no existe", content = @Content)
+    })
+    @PutMapping("/{id}/penales")
+    public PartidoDTO registrarPenales(
+            @Parameter(description = "Id del partido") @PathVariable @Min(1) Long id,
+            @Valid @RequestBody PenaltiesRequestDTO request) {
+        return partidoService.registrarPenales(id, request);
     }
 
     @Operation(summary = "Eliminar partido", description = "Elimina un partido por su id.")
